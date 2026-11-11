@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────
+# Almuerzo a Tiempo – Docker Compose (development)
+# ─────────────────────────────────────────────────────────
+
+services:
+  # ── databases ──────────────────────────────────────────
+  menu-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: menu
+    ports:
+      - "5432:5432"
+    volumes:
+      - menu-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 5
+
+  orders-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: orders
+    ports:
+      - "5433:5432"
+    volumes:
+      - orders-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 5
+
+  # ── microservices ──────────────────────────────────────
+  menu-ms:
+    build: ./menu-ms
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@menu-db:5432/menu"
+      TZ: America/Bogota
+    ports:
+      - "8001:8000"
+    depends_on:
+      menu-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      retries: 3
+
+  # orders-ms will be added in Sprint 2
+  # orders-ms:
+  #   build: ./orders-ms
+  #   environment:
+  #     DATABASE_URL: "postgresql+asyncpg://postgres:postgres@orders-db:5432/orders"
+  #     MENU_URL: "http://menu-ms:8000"
+  #     TZ: America/Bogota
+  #   depends_on:
+  #     orders-db:
+  #       condition: service_healthy
+  #     menu-ms:
+  #       condition: service_healthy
+
+  # ── web (nginx) ────────────────────────────────────────
+  web:
+    build: ./web
+    ports:
+      - "8080:80"
+    depends_on:
+      - menu-ms
+
+volumes:
+  menu-data:
+  orders-data:
