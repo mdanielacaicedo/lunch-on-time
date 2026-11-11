@@ -91,7 +91,7 @@ class ProductOut(BaseModel):
     id: int
     name: str
     category: str
-    price: Decimal
+    price: float
     status: str
     stock: Optional[int] = None
 
@@ -104,7 +104,7 @@ class MenuItemOut(BaseModel):
     id: int
     name: str
     category: str
-    price: Decimal
+    price: float
     status: str
     stock: Optional[int] = None
 
