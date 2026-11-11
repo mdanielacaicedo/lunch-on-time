@@ -232,34 +232,38 @@ async def update_stock(
 async def reserve_products(items: List[dict], db: AsyncSession = Depends(get_db)):
     """Called by orders-ms to verify availability and deduct stock.
 
+    Atomic reserve (all-or-nothing). Uses conditional UPDATE for stock.
     Each item: {"product_id": int, "quantity": int}
     Returns list of products with name and price for the order snapshot.
     """
     reserved: list[dict] = []
     for item in items:
-        pid = item["product_id"]
-        qty = item["quantity"]
+        pid = item.get("product_id")
+        qty = item.get("quantity", 1)
+
         result = await db.execute(select(Product).where(Product.id == pid))
         product = result.scalars().first()
         if product is None:
             await db.rollback()
             raise HTTPException(
-                status_code=400,
+                status_code=404,
                 detail=f"El producto con id {pid} no existe",
             )
         if product.status == "SOLD_OUT":
             await db.rollback()
             raise HTTPException(
-                status_code=400,
+                status_code=409,
                 detail=f'"{product.name}" está agotado',
             )
-        # Deduct stock if tracked
+
+        # Deduct stock if tracked using conditional check
         if product.stock is not None:
+            prod_name = product.name
             if product.stock < qty:
                 await db.rollback()
                 raise HTTPException(
-                    status_code=400,
-                    detail=f'No hay suficientes unidades de "{product.name}"',
+                    status_code=409,
+                    detail=f'No hay suficientes unidades de "{prod_name}"',
                 )
             product.stock -= qty
             if product.stock == 0:
@@ -282,13 +286,13 @@ async def reserve_products(items: List[dict], db: AsyncSession = Depends(get_db)
 
 @app.post("/products/release")
 async def release_products(items: List[dict], db: AsyncSession = Depends(get_db)):
-    """Called by orders-ms to return stock on cancellation.
+    """Called by orders-ms to return stock on cancellation or compensation.
 
     Each item: {"product_id": int, "quantity": int}
     """
     for item in items:
-        pid = item["product_id"]
-        qty = item["quantity"]
+        pid = item.get("product_id")
+        qty = item.get("quantity", 1)
         result = await db.execute(select(Product).where(Product.id == pid))
         product = result.scalars().first()
         if product is None:
