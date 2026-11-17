@@ -82,3 +82,29 @@ class OrderListOut(BaseModel):
     orders: List[OrderOut]
     message: Optional[str] = None
 
+
+class ConfigOut(BaseModel):
+    """System configuration response matching section 8.2."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    slot_capacity: int
+    start_time: str
+    end_time: str
+
+
+class ConfigUpdate(BaseModel):
+    """Payload for PUT /config."""
+
+    slot_capacity: Optional[int] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+    @field_validator("slot_capacity")
+    @classmethod
+    def capacity_must_be_positive(cls, v: Optional[int]) -> Optional[int]:
+        if v is not None and v <= 0:
+            raise ValueError("El cupo debe ser un número entero mayor a 0")
+        return v
+
+

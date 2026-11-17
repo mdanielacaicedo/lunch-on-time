@@ -4,10 +4,1200 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Almuerzo a Tiempo – Menú del día</title>
+  <style>
+    :root {
+      --primary-color: #0d7a42;
+      --primary-hover: #0a6335;
+      --primary-light: #e8f5ed;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --bg-page: #f3f4f6;
+      --bg-card: #ffffff;
+      --border-color: #e5e7eb;
+      --border-focus: #0d7a42;
+      --danger-color: #b91c1c;
+      --danger-bg: #fee2e2;
+      --danger-border: #fca5a5;
+      --success-color: #047857;
+      --success-bg: #d1fae5;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.45;
+      padding-bottom: 40px;
+    }
+
+    .app-container {
+      max-width: 520px;
+      margin: 0 auto;
+      min-width: 360px;
+      padding: 16px;
+    }
+
+    /* Header */
+    .app-header {
+      background: linear-gradient(135deg, var(--primary-color), #09532d);
+      color: #ffffff;
+      padding: 20px 16px;
+      border-radius: var(--radius-lg);
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-md);
+      text-align: center;
+    }
+
+    .app-header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .app-header p {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+
+    /* Alerts */
+    .alert-box {
+      display: none;
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 16px;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    .alert-error {
+      background-color: var(--danger-bg);
+      color: var(--danger-color);
+      border: 1px solid var(--danger-border);
+    }
+
+    .alert-success {
+      background-color: var(--success-bg);
+      color: var(--success-color);
+      border: 1px solid #a7f3d0;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Section Headings */
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Category Filter Pills */
+    .category-pills {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      margin-bottom: 14px;
+      scrollbar-width: none;
+    }
+    .category-pills::-webkit-scrollbar {
+      display: none;
+    }
+
+    .pill-btn {
+      flex: 0 0 auto;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border-color);
+      background-color: #ffffff;
+      color: var(--text-main);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      min-height: 38px;
+    }
+
+    .pill-btn.active {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border-color: var(--primary-color);
+      box-shadow: 0 2px 4px rgba(13, 122, 66, 0.25);
+    }
+
+    /* Menu Items */
+    .menu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .empty-state {
+      background: var(--bg-card);
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px 16px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .product-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.15s ease;
+    }
+
+    .product-card.has-items {
+      border-color: var(--primary-color);
+      background-color: #fafdfb;
+    }
+
+    .product-card.is-sold-out {
+      opacity: 0.65;
+      background-color: #f9fafb;
+    }
+
+    .product-info {
+      flex: 1;
+    }
+
+    .product-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 2px;
+    }
+
+    .product-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .product-category-tag {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      background: var(--bg-page);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .product-price {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--primary-color);
+    }
+
+    .sold-out-badge {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--danger-color);
+      background-color: var(--danger-bg);
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--danger-border);
+    }
+
+    /* Counter Controls */
+    .quantity-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .qty-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--border-color);
+      background-color: #ffffff;
+      color: var(--text-main);
+      font-size: 1.2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+    }
+
+    .qty-btn:active {
+      background-color: var(--primary-light);
+      border-color: var(--primary-color);
+      color: var(--primary-color);
+    }
+
+    .qty-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      border-color: var(--border-color);
+    }
+
+    .qty-display {
+      font-size: 0.95rem;
+      font-weight: 700;
+      min-width: 20px;
+      text-align: center;
+    }
+
+    /* Order Card / Form */
+    .order-form-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 18px 16px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .form-control {
+      width: 100%;
+      height: 44px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background-color: #ffffff;
+      color: var(--text-main);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .form-control:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(13, 122, 66, 0.15);
+    }
+
+    /* Slots Grid */
+    .slots-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .slot-btn {
+      height: 44px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background-color: #ffffff;
+      color: var(--text-main);
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+      padding: 2px;
+      text-align: center;
+    }
+
+    .slot-btn.selected {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border-color: var(--primary-color);
+      box-shadow: 0 2px 4px rgba(13, 122, 66, 0.25);
+    }
+
+    .slot-btn:disabled {
+      opacity: 0.45;
+      background-color: #f3f4f6;
+      border-color: #e5e7eb;
+      cursor: not-allowed;
+      color: var(--text-muted);
+    }
+
+    .slot-btn.is-full {
+      background-color: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+      opacity: 0.7;
+    }
+
+    /* Cart Items Review */
+    .cart-summary {
+      background-color: #fafbfc;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    .cart-items-list {
+      list-style: none;
+      margin-bottom: 8px;
+    }
+
+    .cart-item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+      padding: 4px 0;
+      border-bottom: 1px dashed #e5e7eb;
+    }
+
+    .cart-item-row:last-child {
+      border-bottom: none;
+    }
+
+    .cart-item-name {
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .cart-item-price {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--text-main);
+      padding-top: 8px;
+      border-top: 2px solid var(--border-color);
+    }
+
+    .total-amount {
+      color: var(--primary-color);
+    }
+
+    /* Big Submit Button */
+    .btn-submit {
+      width: 100%;
+      height: 48px;
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s ease, transform 0.05s ease;
+      touch-action: manipulation;
+      box-shadow: 0 4px 6px rgba(13, 122, 66, 0.2);
+    }
+
+    .btn-submit:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-submit:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+
+    .btn-submit:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    /* Receipt Confirmation View */
+    .receipt-card {
+      display: none;
+      background: var(--bg-card);
+      border: 2px solid var(--primary-color);
+      border-radius: var(--radius-lg);
+      padding: 24px 18px;
+      box-shadow: var(--shadow-md);
+      text-align: center;
+      margin-bottom: 20px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .receipt-header {
+      margin-bottom: 16px;
+    }
+
+    .receipt-badge {
+      display: inline-block;
+      background-color: var(--success-bg);
+      color: var(--success-color);
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+
+    .receipt-number {
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: var(--primary-color);
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+
+    .receipt-slot {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .receipt-details {
+      background: #fafbfc;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      text-align: left;
+      margin: 16px 0;
+    }
+
+    .receipt-details-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .receipt-payment-note {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin: 12px 0 18px;
+      line-height: 1.4;
+    }
+
+    .receipt-btn {
+      width: 100%;
+      height: 44px;
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Footer placeholder */
+    .app-footer {
+      text-align: center;
+      margin-top: 18px;
+    }
+
+    .placeholder-link {
+      background: none;
+      border: none;
+      color: var(--primary-color);
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 8px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Almuerzo a Tiempo</h1>
-  <p>Cafetería UdeC Ubaté</p>
-  <!-- Student UI will be built in later sprints -->
+  <div class="app-container">
+
+    <!-- Header -->
+    <header class="app-header">
+      <h1>Menú de hoy</h1>
+      <p>Cafetería UdeC Ubaté</p>
+    </header>
+
+    <!-- Global Alert / Message -->
+    <div id="alert-container" class="alert-box" role="alert"></div>
+
+    <!-- Confirmation Receipt (shown upon order creation) -->
+    <section id="receipt-section" class="receipt-card" aria-live="polite">
+      <div class="receipt-header">
+        <span class="receipt-badge">¡Pedido Confirmado!</span>
+        <div id="receipt-order-number" class="receipt-number">#000</div>
+        <div id="receipt-order-slot" class="receipt-slot">Hora de recogida: --:--</div>
+      </div>
+
+      <div class="receipt-details">
+        <div class="receipt-details-title">Resumen del pedido</div>
+        <div id="receipt-customer-name" style="font-size: 0.9rem; margin-bottom: 6px; font-weight: 600;"></div>
+        <ul id="receipt-items-list" class="cart-items-list"></ul>
+        <div class="total-row" style="font-size: 1rem; margin-top: 8px;">
+          <span>Total a pagar:</span>
+          <span id="receipt-total-amount" class="total-amount">$0</span>
+        </div>
+      </div>
+
+      <p class="receipt-payment-note">
+        Paga al recoger tu pedido en la caja de pedidos anticipados (Efectivo, Nequi o Daviplata).
+      </p>
+
+      <button id="btn-new-order" type="button" class="receipt-btn">Hacer otro pedido</button>
+    </section>
+
+    <!-- Main Content Form & Menu -->
+    <main id="main-order-section">
+
+      <!-- Category Filter Pills -->
+      <nav class="category-pills" aria-label="Categorías del menú">
+        <button type="button" class="pill-btn active" data-category="all">Todas</button>
+        <button type="button" class="pill-btn" data-category="lunch">Almuerzos</button>
+        <button type="button" class="pill-btn" data-category="drink">Bebidas</button>
+        <button type="button" class="pill-btn" data-category="snack">Snacks</button>
+      </nav>
+
+      <!-- Products List -->
+      <section aria-labelledby="menu-heading">
+        <h2 id="menu-heading" class="section-title">
+          <span>Platos y Bebidas</span>
+        </h2>
+        <div id="menu-container" class="menu-list">
+          <div class="empty-state">Cargando menú...</div>
+        </div>
+      </section>
+
+      <!-- Order Form -->
+      <form id="order-form" class="order-form-card" novalidate>
+        <h2 class="section-title">Tu pedido</h2>
+
+        <div class="form-group">
+          <label for="input-customer-name">Nombre</label>
+          <input
+            type="text"
+            id="input-customer-name"
+            class="form-control"
+            placeholder="Ingresa tu nombre"
+            autocomplete="name"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="input-student-code">Código estudiantil</label>
+          <input
+            type="text"
+            id="input-student-code"
+            class="form-control"
+            placeholder="Ej. 461224000"
+            autocomplete="off"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label>Hora de recogida</label>
+          <div id="slots-container" class="slots-grid">
+            <div class="empty-state" style="grid-column: 1 / -1; padding: 12px;">Cargando franjas...</div>
+          </div>
+        </div>
+
+        <!-- Cart Summary -->
+        <div class="cart-summary">
+          <ul id="cart-items-container" class="cart-items-list">
+            <li class="empty-state" style="padding: 8px; font-size: 0.85rem; border: none; background: transparent;">
+              No has agregado productos al pedido
+            </li>
+          </ul>
+          <div class="total-row">
+            <span>Total:</span>
+            <span id="cart-total-display" class="total-amount">$0</span>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button id="btn-confirm-order" type="submit" class="btn-submit">
+          Confirmar pedido
+        </button>
+      </form>
+
+      <!-- Sprint 4 placeholder -->
+      <footer class="app-footer">
+        <button id="btn-placeholder-cancel" type="button" class="placeholder-link">
+          Consultar o cancelar mi pedido
+        </button>
+      </footer>
+
+    </main>
+
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // Constants & Translations
+    // -------------------------------------------------------------
+    const CATEGORY_NAMES = {
+      lunch: 'Almuerzo',
+      drink: 'Bebida',
+      snack: 'Snack'
+    };
+
+    // -------------------------------------------------------------
+    // Application State
+    // -------------------------------------------------------------
+    const state = {
+      activeCategory: 'all',
+      menuProducts: [],
+      // cart: Map of productId -> { product, quantity }
+      cart: new Map(),
+      slots: [],
+      selectedSlot: null,
+      isSubmitting: false,
+      slotsTimerId: null
+    };
+
+    // -------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------
+    function formatCOP(amount) {
+      const rounded = Math.round(Number(amount) || 0);
+      return '$' + rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function showAlert(message, isError = true) {
+      const alertBox = document.getElementById('alert-container');
+      alertBox.textContent = message;
+      alertBox.className = 'alert-box ' + (isError ? 'alert-error' : 'alert-success');
+      alertBox.style.display = 'block';
+      alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function clearAlert() {
+      const alertBox = document.getElementById('alert-container');
+      alertBox.textContent = '';
+      alertBox.style.display = 'none';
+    }
+
+    // -------------------------------------------------------------
+    // Menu Loading & Rendering (CF-MENU-0002, CF-MENU-0006)
+    // -------------------------------------------------------------
+    async function loadMenu(category = 'all') {
+      const container = document.getElementById('menu-container');
+      
+      const url = category && category !== 'all'
+        ? '/api/menu/menu?category=' + encodeURIComponent(category)
+        : '/api/menu/menu';
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const errorMsg = errData.detail || 'No fue posible verificar el menú, intenta de nuevo en unos minutos';
+          showAlert(errorMsg, true);
+          renderEmptyMenu('No fue posible cargar el menú.');
+          return;
+        }
+
+        const data = await response.json();
+        state.menuProducts = Array.isArray(data.products) ? data.products : [];
+
+        if (state.menuProducts.length === 0) {
+          const emptyMsg = data.message || (
+            category !== 'all'
+              ? 'No hay productos en esta categoría hoy'
+              : 'La cafetería aún no ha publicado el menú de hoy'
+          );
+          renderEmptyMenu(emptyMsg);
+        } else {
+          renderMenu(state.menuProducts);
+        }
+      } catch (err) {
+        showAlert('No fue posible verificar el menú, intenta de nuevo en unos minutos', true);
+        renderEmptyMenu('La cafetería aún no ha publicado el menú de hoy');
+      }
+    }
+
+    function renderEmptyMenu(message) {
+      const container = document.getElementById('menu-container');
+      container.replaceChildren();
+
+      const emptyDiv = document.createElement('div');
+      emptyDiv.className = 'empty-state';
+      emptyDiv.textContent = message;
+      container.appendChild(emptyDiv);
+    }
+
+    function renderMenu(products) {
+      const container = document.getElementById('menu-container');
+      container.replaceChildren();
+
+      products.forEach(product => {
+        const card = document.createElement('div');
+        const isSoldOut = product.status === 'SOLD_OUT';
+        const currentQty = state.cart.has(product.id) ? state.cart.get(product.id).quantity : 0;
+
+        card.className = 'product-card' + 
+          (isSoldOut ? ' is-sold-out' : '') + 
+          (currentQty > 0 ? ' has-items' : '');
+        card.id = 'product-card-' + product.id;
+
+        // Info container
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'product-info';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'product-name';
+        nameEl.textContent = product.name;
+        infoDiv.appendChild(nameEl);
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'product-meta';
+
+        const catTag = document.createElement('span');
+        catTag.className = 'product-category-tag';
+        catTag.textContent = CATEGORY_NAMES[product.category] || product.category;
+        metaDiv.appendChild(catTag);
+
+        const priceEl = document.createElement('span');
+        priceEl.className = 'product-price';
+        priceEl.textContent = formatCOP(product.price);
+        metaDiv.appendChild(priceEl);
+
+        infoDiv.appendChild(metaDiv);
+        card.appendChild(infoDiv);
+
+        // Action / Controls
+        if (isSoldOut) {
+          const badge = document.createElement('span');
+          badge.className = 'sold-out-badge';
+          badge.textContent = 'Agotado';
+          card.appendChild(badge);
+        } else {
+          const controlDiv = document.createElement('div');
+          controlDiv.className = 'quantity-control';
+
+          const minusBtn = document.createElement('button');
+          minusBtn.type = 'button';
+          minusBtn.className = 'qty-btn';
+          minusBtn.textContent = '−';
+          minusBtn.setAttribute('aria-label', 'Disminuir ' + product.name);
+          minusBtn.disabled = currentQty === 0;
+
+          const qtySpan = document.createElement('span');
+          qtySpan.className = 'qty-display';
+          qtySpan.id = 'qty-display-' + product.id;
+          qtySpan.textContent = currentQty.toString();
+
+          const plusBtn = document.createElement('button');
+          plusBtn.type = 'button';
+          plusBtn.className = 'qty-btn';
+          plusBtn.textContent = '+';
+          plusBtn.setAttribute('aria-label', 'Aumentar ' + product.name);
+
+          minusBtn.addEventListener('click', () => {
+            updateCartQuantity(product, -1);
+          });
+
+          plusBtn.addEventListener('click', () => {
+            updateCartQuantity(product, 1);
+          });
+
+          controlDiv.appendChild(minusBtn);
+          controlDiv.appendChild(qtySpan);
+          controlDiv.appendChild(plusBtn);
+          card.appendChild(controlDiv);
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Cart Management
+    // -------------------------------------------------------------
+    function updateCartQuantity(product, delta) {
+      clearAlert();
+      const existing = state.cart.get(product.id);
+      const currentQty = existing ? existing.quantity : 0;
+      const nextQty = Math.max(0, currentQty + delta);
+
+      if (nextQty === 0) {
+        state.cart.delete(product.id);
+      } else {
+        state.cart.set(product.id, {
+          product: product,
+          quantity: nextQty
+        });
+      }
+
+      // Update card UI if currently displayed
+      const qtySpan = document.getElementById('qty-display-' + product.id);
+      if (qtySpan) {
+        qtySpan.textContent = nextQty.toString();
+        const card = document.getElementById('product-card-' + product.id);
+        if (card) {
+          if (nextQty > 0) {
+            card.classList.add('has-items');
+          } else {
+            card.classList.remove('has-items');
+          }
+          const minusBtn = card.querySelector('.qty-btn:first-child');
+          if (minusBtn) {
+            minusBtn.disabled = nextQty === 0;
+          }
+        }
+      }
+
+      renderCartSummary();
+    }
+
+    function renderCartSummary() {
+      const container = document.getElementById('cart-items-container');
+      const totalDisplay = document.getElementById('cart-total-display');
+      container.replaceChildren();
+
+      if (state.cart.size === 0) {
+        const emptyLi = document.createElement('li');
+        emptyLi.className = 'empty-state';
+        emptyLi.style.padding = '8px';
+        emptyLi.style.fontSize = '0.85rem';
+        emptyLi.style.border = 'none';
+        emptyLi.style.background = 'transparent';
+        emptyLi.textContent = 'No has agregado productos al pedido';
+        container.appendChild(emptyLi);
+        totalDisplay.textContent = '$0';
+        return;
+      }
+
+      let grandTotal = 0;
+
+      state.cart.forEach(item => {
+        const itemSubtotal = item.product.price * item.quantity;
+        grandTotal += itemSubtotal;
+
+        const row = document.createElement('li');
+        row.className = 'cart-item-row';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'cart-item-name';
+        nameSpan.textContent = item.quantity + ' × ' + item.product.name;
+
+        const priceSpan = document.createElement('span');
+        priceSpan.className = 'cart-item-price';
+        priceSpan.textContent = formatCOP(itemSubtotal);
+
+        row.appendChild(nameSpan);
+        row.appendChild(priceSpan);
+        container.appendChild(row);
+      });
+
+      totalDisplay.textContent = formatCOP(grandTotal);
+    }
+
+    // -------------------------------------------------------------
+    // Slots Loading & Rendering (CF-PEDI-0003, CF-PEDI-0009)
+    // -------------------------------------------------------------
+    async function loadSlots() {
+      const container = document.getElementById('slots-container');
+
+      try {
+        const response = await fetch('/api/orders/slots');
+        if (!response.ok) {
+          return;
+        }
+
+        const slots = await response.json();
+        state.slots = Array.isArray(slots) ? slots : [];
+        renderSlots(state.slots);
+      } catch (err) {
+        // Fallback or silent fail on background poll
+      }
+    }
+
+    function renderSlots(slots) {
+      const container = document.getElementById('slots-container');
+      container.replaceChildren();
+
+      if (!slots || slots.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-state';
+        emptyDiv.style.gridColumn = '1 / -1';
+        emptyDiv.style.padding = '10px';
+        emptyDiv.textContent = 'No hay franjas de recogida disponibles';
+        container.appendChild(emptyDiv);
+        state.selectedSlot = null;
+        return;
+      }
+
+      // Check if selected slot became invalid
+      if (state.selectedSlot) {
+        const selectedObj = slots.find(s => s.slot === state.selectedSlot);
+        if (!selectedObj || selectedObj.status !== 'available') {
+          state.selectedSlot = null;
+        }
+      }
+
+      slots.forEach(slotItem => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-btn';
+        btn.dataset.slot = slotItem.slot;
+
+        if (slotItem.status === 'past') {
+          btn.disabled = true;
+          btn.textContent = slotItem.slot;
+        } else if (slotItem.status === 'full') {
+          btn.disabled = true;
+          btn.classList.add('is-full');
+          btn.textContent = slotItem.slot + ' · Llena';
+        } else {
+          // available
+          btn.textContent = slotItem.slot;
+          if (state.selectedSlot === slotItem.slot) {
+            btn.classList.add('selected');
+          }
+          btn.addEventListener('click', () => {
+            selectSlot(slotItem.slot);
+          });
+        }
+
+        container.appendChild(btn);
+      });
+    }
+
+    function selectSlot(slotTime) {
+      clearAlert();
+      state.selectedSlot = slotTime;
+      const buttons = document.querySelectorAll('.slot-btn');
+      buttons.forEach(btn => {
+        if (btn.dataset.slot === slotTime) {
+          btn.classList.add('selected');
+        } else {
+          btn.classList.remove('selected');
+        }
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Order Submission (CF-PEDI-0001, CF-PEDI-0002, CF-PEDI-0003)
+    // -------------------------------------------------------------
+    async function handleConfirmOrder(e) {
+      e.preventDefault();
+      clearAlert();
+
+      if (state.isSubmitting) return;
+
+      const customerNameInput = document.getElementById('input-customer-name');
+      const studentCodeInput = document.getElementById('input-student-code');
+      const confirmBtn = document.getElementById('btn-confirm-order');
+
+      const customerName = customerNameInput.value.trim();
+      const studentCode = studentCodeInput.value.trim();
+
+      // Client validations per acceptance criteria
+      if (state.cart.size === 0) {
+        showAlert('Agrega al menos un producto', true);
+        return;
+      }
+
+      if (!customerName || !studentCode) {
+        showAlert('Complete los campos obligatorios', true);
+        return;
+      }
+
+      if (!state.selectedSlot) {
+        showAlert('Selecciona una hora de recogida', true);
+        return;
+      }
+
+      // Prepare items payload
+      const itemsPayload = [];
+      state.cart.forEach(item => {
+        itemsPayload.push({
+          product_id: item.product.id,
+          quantity: item.quantity
+        });
+      });
+
+      const payload = {
+        customer_name: customerName,
+        student_code: studentCode,
+        slot: state.selectedSlot,
+        items: itemsPayload
+      };
+
+      // Disable button during request (Requirement 1)
+      state.isSubmitting = true;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Procesando...';
+
+      try {
+        const response = await fetch('/api/orders/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          // Requirement 3: reload slots after any error
+          await loadSlots();
+
+          const errData = await response.json().catch(() => ({}));
+          const errorMsg = errData.detail || 'Ocurrió un error al procesar el pedido';
+          showAlert(errorMsg, true);
+          return;
+        }
+
+        const orderData = await response.json();
+        // Success: update slots and show receipt
+        await loadSlots();
+        showReceipt(orderData);
+
+      } catch (err) {
+        // Requirement 3: reload slots after error
+        await loadSlots();
+        showAlert('No fue posible verificar el menú, intenta de nuevo en unos minutos', true);
+      } finally {
+        state.isSubmitting = false;
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Confirmar pedido';
+      }
+    }
+
+    function showReceipt(order) {
+      // Hide order form and menu
+      document.getElementById('main-order-section').style.display = 'none';
+
+      // Populate receipt using textContent (Requirement 2)
+      const receiptSection = document.getElementById('receipt-section');
+      document.getElementById('receipt-order-number').textContent = '#' + order.number;
+      document.getElementById('receipt-order-slot').textContent = 'Hora de recogida: ' + order.slot;
+      document.getElementById('receipt-customer-name').textContent = order.customer_name + ' (' + order.student_code + ')';
+
+      const itemsList = document.getElementById('receipt-items-list');
+      itemsList.replaceChildren();
+
+      if (Array.isArray(order.items)) {
+        order.items.forEach(it => {
+          const row = document.createElement('li');
+          row.className = 'cart-item-row';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'cart-item-name';
+          nameSpan.textContent = it.quantity + ' × ' + it.product_name;
+
+          const priceSpan = document.createElement('span');
+          priceSpan.className = 'cart-item-price';
+          priceSpan.textContent = formatCOP(it.unit_price * it.quantity);
+
+          row.appendChild(nameSpan);
+          row.appendChild(priceSpan);
+          itemsList.appendChild(row);
+        });
+      }
+
+      document.getElementById('receipt-total-amount').textContent = formatCOP(order.total);
+      receiptSection.style.display = 'block';
+      receiptSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function resetOrderView() {
+      // Clear cart
+      state.cart.clear();
+      state.selectedSlot = null;
+      document.getElementById('input-customer-name').value = '';
+      document.getElementById('input-student-code').value = '';
+
+      renderCartSummary();
+      loadMenu(state.activeCategory);
+      loadSlots();
+
+      document.getElementById('receipt-section').style.display = 'none';
+      document.getElementById('main-order-section').style.display = 'block';
+      clearAlert();
+    }
+
+    // -------------------------------------------------------------
+    // Category Tabs Filtering
+    // -------------------------------------------------------------
+    function setupCategoryPills() {
+      const pills = document.querySelectorAll('.pill-btn');
+      pills.forEach(btn => {
+        btn.addEventListener('click', () => {
+          pills.forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          const cat = btn.dataset.category || 'all';
+          state.activeCategory = cat;
+          loadMenu(cat);
+        });
+      });
+    }
+
+    // -------------------------------------------------------------
+    // Initialization
+    // -------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+      setupCategoryPills();
+      loadMenu('all');
+      loadSlots();
+
+      // Requirement 3: Recarga GET /slots cada 60 s
+      state.slotsTimerId = setInterval(loadSlots, 60000);
+
+      // Order submission
+      const orderForm = document.getElementById('order-form');
+      orderForm.addEventListener('submit', handleConfirmOrder);
+
+      // New order button on receipt
+      const newOrderBtn = document.getElementById('btn-new-order');
+      newOrderBtn.addEventListener('click', resetOrderView);
+
+      // Sprint 4 placeholder dialog
+      const placeholderBtn = document.getElementById('btn-placeholder-cancel');
+      placeholderBtn.addEventListener('click', () => {
+        showAlert('La consulta y cancelación de pedidos estarán disponibles en el Sprint 4.', false);
+      });
+    });
+  </script>
 </body>
 </html>

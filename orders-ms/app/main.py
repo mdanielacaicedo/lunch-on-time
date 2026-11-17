@@ -43,7 +43,15 @@ from app.menu_client import (
     reserve_products,
 )
 from app.models import Config, Order, OrderItem
-from app.schemas import OrderCreate, OrderItemOut, OrderListOut, OrderOut, SlotOut
+from app.schemas import (
+    ConfigOut,
+    ConfigUpdate,
+    OrderCreate,
+    OrderItemOut,
+    OrderListOut,
+    OrderOut,
+    SlotOut,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +77,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     for error in exc.errors():
         msg = error.get("msg", "")
         if "La cantidad debe ser mayor a 0" in msg:
+            return JSONResponse(status_code=400, content={"detail": msg})
+        if "El cupo debe ser un número entero mayor a 0" in msg:
             return JSONResponse(status_code=400, content={"detail": msg})
     return JSONResponse(
         status_code=400,
@@ -463,4 +473,79 @@ async def mark_order_ready(number: str, db: AsyncSession = Depends(get_db)):
             for it in order.items
         ],
     )
+
+
+# ---------- GET / PUT /config (CF-PEDI-0009, Section 8.2) ----------
+
+@app.get("/config", response_model=ConfigOut)
+async def get_config(db: AsyncSession = Depends(get_db)):
+    """Retrieve current system configuration (slot_capacity, start_time, end_time)."""
+    configs = await get_system_config(db)
+    return ConfigOut(
+        slot_capacity=int(configs.get("slot_capacity", "10")),
+        start_time=configs.get("start_time", "11:30"),
+        end_time=configs.get("end_time", "14:00"),
+    )
+
+
+@app.put("/config", response_model=ConfigOut)
+async def update_config(body: ConfigUpdate, db: AsyncSession = Depends(get_db)):
+    """Update slot_capacity, start_time, and/or end_time."""
+    current_configs = await get_system_config(db)
+    current_capacity = int(current_configs.get("slot_capacity", "10"))
+    current_start = current_configs.get("start_time", "11:30")
+    current_end = current_configs.get("end_time", "14:00")
+
+    target_capacity = body.slot_capacity if body.slot_capacity is not None else current_capacity
+    target_start = body.start_time.strip() if body.start_time is not None else current_start
+    target_end = body.end_time.strip() if body.end_time is not None else current_end
+
+    if target_capacity <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="El cupo debe ser un número entero mayor a 0",
+        )
+
+    try:
+        start_t = datetime.strptime(target_start, "%H:%M").time()
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="La hora de inicio debe tener formato HH:MM",
+        )
+
+    try:
+        end_t = datetime.strptime(target_end, "%H:%M").time()
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="La hora de fin debe tener formato HH:MM",
+        )
+
+    if start_t >= end_t:
+        raise HTTPException(
+            status_code=400,
+            detail="La hora de inicio debe ser menor a la hora de fin",
+        )
+
+    updates = {
+        "slot_capacity": str(target_capacity),
+        "start_time": target_start,
+        "end_time": target_end,
+    }
+    for k, v in updates.items():
+        cfg = await db.get(Config, k)
+        if cfg:
+            cfg.value = v
+        else:
+            db.add(Config(key=k, value=v))
+
+    await db.commit()
+
+    return ConfigOut(
+        slot_capacity=target_capacity,
+        start_time=target_start,
+        end_time=target_end,
+    )
+
 
