@@ -7,8 +7,11 @@ Uses NullPool to avoid asyncpg connection leaking across event loops.
 from __future__ import annotations
 
 import os
+from datetime import date, datetime, time
 from typing import AsyncGenerator
+from unittest.mock import patch
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
@@ -20,13 +23,22 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from app.db import get_db
-from app.main import app
-from app.models import Base, Order, OrderItem
+from app.main import BOGOTA_TZ, app
+from app.models import Base, Config, Order, OrderItem
 
 TEST_DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql+asyncpg://postgres:postgres@localhost:5433/orders",
 )
+
+
+@pytest.fixture(autouse=True)
+def default_bogota_time():
+    """Default simulated time to 11:00 AM Bogota time today so standard lunch slots (11:30-14:00) are valid."""
+    today = date.today()
+    default_now = datetime.combine(today, time(11, 0), tzinfo=BOGOTA_TZ)
+    with patch("app.main.get_now_bogota", return_value=default_now):
+        yield default_now
 
 
 @pytest_asyncio.fixture()
@@ -41,8 +53,22 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with session_factory() as session:
         await session.execute(delete(OrderItem))
         await session.execute(delete(Order))
+
+        default_configs = {
+            "slot_capacity": "25",
+            "start_time": "11:30",
+            "end_time": "14:00",
+        }
+        for key, value in default_configs.items():
+            cfg = await session.get(Config, key)
+            if cfg is None:
+                session.add(Config(key=key, value=value))
+            else:
+                cfg.value = value
         await session.commit()
+
         yield session
+
         await session.execute(delete(OrderItem))
         await session.execute(delete(Order))
         await session.commit()
