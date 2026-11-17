@@ -67,3 +67,18 @@ class OrderOut(BaseModel):
     customer_name: Optional[str] = None
     student_code: Optional[str] = None
     items: Optional[List[OrderItemOut]] = None
+
+
+class SlotOut(BaseModel):
+    """15-minute pickup slot."""
+
+    slot: str
+    status: str  # available, past, full
+
+
+class OrderListOut(BaseModel):
+    """Orders list response matching CF-PEDI-0004."""
+
+    orders: List[OrderOut]
+    message: Optional[str] = None
+

@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from decimal import Decimal
+from typing import List, Optional
 
 try:
     from zoneinfo import ZoneInfo
@@ -26,11 +27,12 @@ def get_now_bogota() -> datetime:
     except Exception:
         return datetime.now(timezone(timedelta(hours=-5)))
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db import get_db, init_db
 from app.menu_client import (
@@ -40,8 +42,8 @@ from app.menu_client import (
     release_products,
     reserve_products,
 )
-from app.models import Order, OrderItem
-from app.schemas import OrderCreate, OrderItemOut, OrderOut
+from app.models import Config, Order, OrderItem
+from app.schemas import OrderCreate, OrderItemOut, OrderListOut, OrderOut, SlotOut
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +91,39 @@ async def menu_client_error_handler(request: Request, exc: MenuClientError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 
+# ---------- System config & slot helpers ----------
+
+async def get_system_config(db: AsyncSession) -> dict[str, str]:
+    """Retrieve system configuration values with fallback defaults."""
+    result = await db.execute(select(Config))
+    rows = result.scalars().all()
+    configs = {row.key: row.value for row in rows}
+    defaults = {
+        "slot_capacity": "10",
+        "start_time": "11:30",
+        "end_time": "14:00",
+    }
+    for k, v in defaults.items():
+        if k not in configs:
+            configs[k] = v
+    return configs
+
+
+def get_generated_slot_times(start_str: str, end_str: str) -> list[str]:
+    """Generate 15-minute slot times between start_time and end_time (exclusive of end_time)."""
+    start_t = datetime.strptime(start_str, "%H:%M").time()
+    end_t = datetime.strptime(end_str, "%H:%M").time()
+    dummy_date = datetime(2000, 1, 1)
+    curr_dt = datetime.combine(dummy_date, start_t)
+    end_dt = datetime.combine(dummy_date, end_t)
+
+    slots: list[str] = []
+    while curr_dt < end_dt:
+        slots.append(curr_dt.strftime("%H:%M"))
+        curr_dt += timedelta(minutes=15)
+    return slots
+
+
 # ---------- GET /health ----------
 
 @app.get("/health")
@@ -96,7 +131,51 @@ async def health():
     return {"status": "ok"}
 
 
-# ---------- POST /orders (CF-PEDI-0001, CF-PEDI-0002) ----------
+# ---------- GET /slots (CF-PEDI-0003) ----------
+
+@app.get("/slots", response_model=List[SlotOut])
+async def get_slots(db: AsyncSession = Depends(get_db)):
+    """Return today's 15-minute pickup slots with status: available, past, full."""
+    configs = await get_system_config(db)
+    start_str = configs.get("start_time", "11:30")
+    end_str = configs.get("end_time", "14:00")
+    capacity = int(configs.get("slot_capacity", "10"))
+
+    valid_slots = get_generated_slot_times(start_str, end_str)
+
+    now_bogota = get_now_bogota()
+    today = now_bogota.date()
+    cutoff = now_bogota + timedelta(minutes=15)
+
+    stmt = (
+        select(Order.slot, func.count(Order.id))
+        .where(
+            Order.date == today,
+            Order.status != "CANCELLED",
+        )
+        .group_by(Order.slot)
+    )
+    res = await db.execute(stmt)
+    counts = dict(res.all())
+
+    slots_out: list[SlotOut] = []
+    for slot_str in valid_slots:
+        slot_t = datetime.strptime(slot_str, "%H:%M").time()
+        slot_dt = datetime.combine(today, slot_t, tzinfo=now_bogota.tzinfo)
+
+        if slot_dt < cutoff:
+            status = "past"
+        elif counts.get(slot_str, 0) >= capacity:
+            status = "full"
+        else:
+            status = "available"
+
+        slots_out.append(SlotOut(slot=slot_str, status=status))
+
+    return slots_out
+
+
+# ---------- POST /orders (CF-PEDI-0001, CF-PEDI-0002, CF-PEDI-0003) ----------
 
 @app.post("/orders", response_model=OrderOut, status_code=201)
 async def create_order(body: OrderCreate, db: AsyncSession = Depends(get_db)):
@@ -104,29 +183,45 @@ async def create_order(body: OrderCreate, db: AsyncSession = Depends(get_db)):
     if not body.items or len(body.items) == 0:
         raise HTTPException(status_code=400, detail="Agrega al menos un producto")
 
-    # 2. Validate mandatory customer info and slot
+    # 2. Validate mandatory customer info
     if (
         not body.customer_name
         or not body.customer_name.strip()
         or not body.student_code
         or not body.student_code.strip()
-        or not body.slot
-        or not body.slot.strip()
+        or body.slot is None
     ):
         raise HTTPException(status_code=400, detail="Complete los campos obligatorios")
+
+    # 3. Validate slot selection and schedule (CF-PEDI-0003)
+    slot_str = body.slot.strip()
+    if not slot_str:
+        raise HTTPException(status_code=400, detail="Selecciona una hora de recogida")
+
+    configs = await get_system_config(db)
+    valid_slots = get_generated_slot_times(
+        configs.get("start_time", "11:30"),
+        configs.get("end_time", "14:00"),
+    )
+    if slot_str not in valid_slots:
+        raise HTTPException(status_code=400, detail="Selecciona una hora de recogida")
+
+    now_bogota = get_now_bogota()
+    order_date = now_bogota.date()
+    slot_t = datetime.strptime(slot_str, "%H:%M").time()
+    slot_dt = datetime.combine(order_date, slot_t, tzinfo=now_bogota.tzinfo)
+    if slot_dt < now_bogota + timedelta(minutes=15):
+        raise HTTPException(status_code=400, detail="Selecciona una hora de recogida")
 
     raw_items = [
         {"product_id": item.product_id, "quantity": item.quantity}
         for item in body.items
     ]
 
-    # 3. Reserve products in menu-ms (timeout 3s, checks sold_out & stock)
+    # 4. Reserve products in menu-ms (timeout 3s, checks sold_out & stock)
     # May raise MenuUnavailableError (503) or ProductSoldOutError (409)
     reserved_items = await reserve_products(raw_items)
 
-    # 4. Determine order date in America/Bogota (avoids UTC date rollover at 7 PM)
-    now_bogota = get_now_bogota()
-    order_date = now_bogota.date()
     lock_key = int(order_date.strftime("%Y%m%d"))
 
     # 5. Database transaction with advisory transaction lock per date
@@ -136,6 +231,24 @@ async def create_order(body: OrderCreate, db: AsyncSession = Depends(get_db)):
             text("SELECT pg_advisory_xact_lock(:lock_key)"),
             {"lock_key": lock_key},
         )
+
+        # Check slot capacity inside the advisory lock before inserting
+        count_stmt = select(func.count(Order.id)).where(
+            Order.date == order_date,
+            Order.slot == slot_str,
+            Order.status != "CANCELLED",
+        )
+        res_count = await db.execute(count_stmt)
+        current_slot_orders = res_count.scalar_one()
+
+        slot_capacity = int(configs.get("slot_capacity", "10"))
+        if current_slot_orders >= slot_capacity:
+            await db.rollback()
+            await release_products(raw_items)
+            raise HTTPException(
+                status_code=409,
+                detail="La franja seleccionada está llena",
+            )
 
         # Get daily sequential number
         num_stmt = select(func.coalesce(func.max(Order.number), 0) + 1).where(
@@ -156,7 +269,7 @@ async def create_order(body: OrderCreate, db: AsyncSession = Depends(get_db)):
             number=next_number,
             customer_name=body.customer_name.strip(),
             student_code=body.student_code.strip(),
-            slot=body.slot.strip(),
+            slot=slot_str,
             status="RECEIVED",
             total=total,
         )
@@ -176,6 +289,8 @@ async def create_order(body: OrderCreate, db: AsyncSession = Depends(get_db)):
 
         await db.commit()
 
+    except HTTPException:
+        raise
     except Exception as exc:
         # DB failure after reservation -> SAGA COMPENSATION: release reserved units
         logger.error(f"Failed to persist order, executing compensation release: {exc}")
@@ -205,3 +320,147 @@ async def create_order(body: OrderCreate, db: AsyncSession = Depends(get_db)):
         student_code=order.student_code,
         items=items_out,
     )
+
+
+# ---------- GET /orders (CF-PEDI-0004, CF-PEDI-0005) ----------
+
+@app.get("/orders", response_model=OrderListOut)
+async def list_orders(
+    status: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """List today's orders ordered by slot and number."""
+    now_bogota = get_now_bogota()
+    today = now_bogota.date()
+
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(Order.date == today)
+    )
+
+    if status:
+        stmt = stmt.where(Order.status == status)
+    else:
+        stmt = stmt.where(Order.status != "CANCELLED")
+
+    stmt = stmt.order_by(Order.slot.asc(), Order.number.asc())
+    res = await db.execute(stmt)
+    orders = res.scalars().all()
+
+    orders_out = [
+        OrderOut(
+            number=f"{o.number:03d}",
+            status=o.status,
+            slot=o.slot,
+            total=float(o.total),
+            customer_name=o.customer_name,
+            student_code=o.student_code,
+            items=[
+                OrderItemOut(
+                    product_id=it.product_id,
+                    product_name=it.product_name,
+                    unit_price=float(it.unit_price),
+                    quantity=it.quantity,
+                )
+                for it in o.items
+            ],
+        )
+        for o in orders
+    ]
+
+    message = None
+    if not orders_out and status == "RECEIVED":
+        message = "No hay pedidos pendientes"
+
+    return OrderListOut(orders=orders_out, message=message)
+
+
+# ---------- POST /orders/{number}/ready (CF-PEDI-0005) ----------
+
+@app.post("/orders/{number}/ready", response_model=OrderOut)
+async def mark_order_ready(number: str, db: AsyncSession = Depends(get_db)):
+    """Mark an order as READY from RECEIVED."""
+    try:
+        num = int(number)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    now_bogota = get_now_bogota()
+    today = now_bogota.date()
+
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(
+            Order.date == today,
+            Order.number == num,
+        )
+    )
+    res = await db.execute(stmt)
+    order = res.scalars().first()
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    if order.status == "CANCELLED":
+        raise HTTPException(
+            status_code=409,
+            detail="Este pedido fue cancelado",
+        )
+
+    if order.status == "DELIVERED":
+        raise HTTPException(
+            status_code=409,
+            detail="Este pedido ya fue entregado",
+        )
+
+    if order.status == "READY":
+        # Idempotent: return without error
+        return OrderOut(
+            number=f"{order.number:03d}",
+            status=order.status,
+            slot=order.slot,
+            total=float(order.total),
+            customer_name=order.customer_name,
+            student_code=order.student_code,
+            items=[
+                OrderItemOut(
+                    product_id=it.product_id,
+                    product_name=it.product_name,
+                    unit_price=float(it.unit_price),
+                    quantity=it.quantity,
+                )
+                for it in order.items
+            ],
+        )
+
+    # Transition RECEIVED -> READY
+    order.status = "READY"
+    await db.commit()
+    await db.refresh(order)
+
+    return OrderOut(
+        number=f"{order.number:03d}",
+        status=order.status,
+        slot=order.slot,
+        total=float(order.total),
+        customer_name=order.customer_name,
+        student_code=order.student_code,
+        items=[
+            OrderItemOut(
+                product_id=it.product_id,
+                product_name=it.product_name,
+                unit_price=float(it.unit_price),
+                quantity=it.quantity,
+            )
+            for it in order.items
+        ],
+    )
+
