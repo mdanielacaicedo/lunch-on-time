@@ -965,3 +965,130 @@ class TestMarkOrderReady:
         assert r2.status_code == 404
         assert r2.json()["detail"] == "No se encontró un pedido con ese número"
 
+
+# ====================================================================
+# Config · GET / PUT /config (CF-PEDI-0009, Section 8.2)
+# ====================================================================
+
+class TestConfigEndpoints:
+    """Tests for GET /config and PUT /config."""
+
+    @pytest.mark.asyncio
+    async def test_get_config_success(self, client: AsyncClient):
+        """GET /config returns current system configuration."""
+        resp = await client.get("/config")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "slot_capacity" in data
+        assert isinstance(data["slot_capacity"], int)
+        assert data["slot_capacity"] > 0
+        assert "start_time" in data
+        assert "end_time" in data
+
+    @pytest.mark.asyncio
+    async def test_put_config_success(self, client: AsyncClient):
+        """PUT /config updates configuration and subsequent GET returns updated values."""
+        update_payload = {
+            "slot_capacity": 15,
+            "start_time": "12:00",
+            "end_time": "13:30",
+        }
+        put_resp = await client.put("/config", json=update_payload)
+        assert put_resp.status_code == 200
+        put_data = put_resp.json()
+        assert put_data["slot_capacity"] == 15
+        assert put_data["start_time"] == "12:00"
+        assert put_data["end_time"] == "13:30"
+
+        get_resp = await client.get("/config")
+        assert get_resp.status_code == 200
+        get_data = get_resp.json()
+        assert get_data["slot_capacity"] == 15
+        assert get_data["start_time"] == "12:00"
+        assert get_data["end_time"] == "13:30"
+
+    @pytest.mark.asyncio
+    async def test_put_config_start_time_not_less_than_end_time_400(self, client: AsyncClient):
+        """PUT /config rejects start_time >= end_time with 400."""
+        # start_time > end_time
+        r1 = await client.put("/config", json={"start_time": "14:00", "end_time": "12:00"})
+        assert r1.status_code == 400
+        assert "menor" in r1.json()["detail"]
+
+        # start_time == end_time
+        r2 = await client.put("/config", json={"start_time": "12:00", "end_time": "12:00"})
+        assert r2.status_code == 400
+        assert "menor" in r2.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_put_config_invalid_time_format_400(self, client: AsyncClient):
+        """PUT /config rejects invalid time formats with 400."""
+        r1 = await client.put("/config", json={"start_time": "12:99"})
+        assert r1.status_code == 400
+
+        r2 = await client.put("/config", json={"end_time": "invalid"})
+        assert r2.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_put_config_invalid_slot_capacity_400(self, client: AsyncClient):
+        """PUT /config rejects slot_capacity <= 0 or non-integer with 400."""
+        # 0
+        r1 = await client.put("/config", json={"slot_capacity": 0})
+        assert r1.status_code == 400
+
+        # negative
+        r2 = await client.put("/config", json={"slot_capacity": -5})
+        assert r2.status_code == 400
+
+        # non-integer string
+        r3 = await client.put("/config", json={"slot_capacity": "abc"})
+        assert r3.status_code == 400
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_get_slots_uses_new_config_immediately(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """GET /slots uses updated start_time, end_time and slot_capacity immediately."""
+        # Update config: 12:00 to 13:00, capacity = 1
+        put_resp = await client.put(
+            "/config",
+            json={
+                "slot_capacity": 1,
+                "start_time": "12:00",
+                "end_time": "13:00",
+            },
+        )
+        assert put_resp.status_code == 200
+
+        # GET /slots immediately reflects new time window: 12:00, 12:15, 12:30, 12:45
+        slots_resp = await client.get("/slots")
+        assert slots_resp.status_code == 200
+        slots = slots_resp.json()
+        slot_names = [s["slot"] for s in slots]
+        assert slot_names == ["12:00", "12:15", "12:30", "12:45"]
+        assert all(s["status"] == "available" for s in slots)
+
+        # Place 1 order in 12:15
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        order_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Juan Perez",
+                "student_code": "100200",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        assert order_resp.status_code == 201
+
+        # GET /slots should now immediately show 12:15 as full (since capacity is 1)
+        slots_resp2 = await client.get("/slots")
+        assert slots_resp2.status_code == 200
+        slots2 = slots_resp2.json()
+        slot_1215 = next(s for s in slots2 if s["slot"] == "12:15")
+        assert slot_1215["status"] == "full"
+
+

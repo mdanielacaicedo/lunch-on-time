@@ -4,10 +4,1386 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Almuerzo a Tiempo – Panel del encargado</title>
+  <style>
+    :root {
+      --primary-color: #0d7a42;
+      --primary-hover: #0a6335;
+      --primary-light: #e8f5ed;
+      --text-main: #1f2937;
+      --text-muted: #6b7280;
+      --bg-page: #f0f2f5;
+      --bg-card: #ffffff;
+      --border-color: #e5e7eb;
+      --border-focus: #0d7a42;
+      --danger-color: #b91c1c;
+      --danger-bg: #fee2e2;
+      --danger-border: #fca5a5;
+      --success-color: #047857;
+      --success-bg: #d1fae5;
+      --success-border: #a7f3d0;
+      --warning-color: #b45309;
+      --warning-bg: #fef3c7;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+      --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 24px 20px 60px;
+    }
+
+    .staff-container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    /* Top Navigation / Header */
+    .top-header {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .brand-title {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-title h1 {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: var(--primary-color);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-title span {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .auto-refresh-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: var(--primary-light);
+      color: var(--primary-color);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 999px;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--primary-color);
+      border-radius: 50%;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .btn-secondary {
+      background-color: #ffffff;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 7px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background-color: #f9fafb;
+      border-color: #d1d5db;
+    }
+
+    .btn-secondary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Alerts */
+    .alert-banner {
+      display: none;
+      padding: 12px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 500;
+      margin-bottom: 20px;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    .alert-banner.error {
+      background-color: var(--danger-bg);
+      color: var(--danger-color);
+      border: 1px solid var(--danger-border);
+    }
+
+    .alert-banner.success {
+      background-color: var(--success-bg);
+      color: var(--success-color);
+      border: 1px solid var(--success-border);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Tabs Bar */
+    .tabs-bar {
+      display: flex;
+      gap: 6px;
+      border-bottom: 2px solid var(--border-color);
+      margin-bottom: 24px;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      padding: 12px 20px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      position: relative;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+    }
+
+    .tab-badge {
+      display: inline-block;
+      background-color: var(--primary-color);
+      color: #ffffff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      margin-left: 6px;
+    }
+
+    /* Tab Content Views */
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .panel-header {
+      margin-bottom: 16px;
+    }
+
+    .panel-header h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .panel-header p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    /* Orders List & Cards */
+    .orders-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .order-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      transition: border-color 0.15s ease;
+    }
+
+    .order-card:hover {
+      border-color: #cbd5e1;
+    }
+
+    .order-main-info {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .order-headline {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .order-number-tag {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 0.88rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .order-slot-tag {
+      background: var(--primary-light);
+      color: var(--primary-color);
+      font-size: 0.85rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .order-items-summary {
+      font-size: 0.92rem;
+      color: #4b5563;
+      margin-bottom: 4px;
+    }
+
+    .order-meta-info {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .order-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-ready {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border: none;
+      padding: 10px 22px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+      min-width: 90px;
+      text-align: center;
+    }
+
+    .btn-ready:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-ready:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    /* Reserved Buttons for Sprint 4 */
+    .sprint4-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+    }
+
+    .sprint4-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-placeholder {
+      background-color: #f3f4f6;
+      border: 1px dashed #d1d5db;
+      color: #9ca3af;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      cursor: not-allowed;
+    }
+
+    .sprint-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* Empty States */
+    .empty-card {
+      background: var(--bg-card);
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 36px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 1rem;
+    }
+
+    /* Products Tab Styling */
+    .products-layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 860px) {
+      .products-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .product-form-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .product-form-box h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--text-main);
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: var(--text-main);
+    }
+
+    .form-control {
+      width: 100%;
+      height: 40px;
+      padding: 8px 12px;
+      font-size: 0.92rem;
+      font-family: inherit;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background-color: #ffffff;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .form-control:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(13, 122, 66, 0.15);
+    }
+
+    .btn-submit-form {
+      width: 100%;
+      height: 42px;
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+      margin-top: 8px;
+    }
+
+    .btn-submit-form:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-submit-form:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    /* Products Table */
+    .table-responsive {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      overflow-x: auto;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    table.data-table th {
+      background-color: #f9fafb;
+      padding: 12px 16px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    table.data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    table.data-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+
+    .status-badge.available {
+      background-color: var(--success-bg);
+      color: var(--success-color);
+    }
+
+    .status-badge.sold-out {
+      background-color: var(--danger-bg);
+      color: var(--danger-color);
+    }
+
+    .price-edit-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .input-mini-price {
+      width: 90px;
+      height: 32px;
+      padding: 4px 8px;
+      font-size: 0.88rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-mini {
+      height: 32px;
+      padding: 0 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background-color: #ffffff;
+      color: var(--text-main);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .btn-mini:hover:not(:disabled) {
+      background-color: #f9fafb;
+    }
+
+    .btn-mini:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-toggle-status {
+      min-width: 155px;
+    }
+
+    /* Tab Settings (Sprint 5 Placeholder) */
+    .settings-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      max-width: 520px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .settings-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+    }
+
+    .settings-card p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Panel del encargado</h1>
-  <p>Cafetería UdeC Ubaté</p>
-  <!-- Staff UI will be built in later sprints -->
+  <div class="staff-container">
+
+    <!-- Top Header -->
+    <header class="top-header">
+      <div class="brand-title">
+        <h1>Panel del encargado</h1>
+        <span>Cafetería UdeC Ubaté · Sistema de pedidos anticipados</span>
+      </div>
+      <div class="header-actions">
+        <span class="auto-refresh-badge">
+          <span class="pulse-dot"></span>
+          Auto-actualización: 10 s
+        </span>
+        <button id="btn-refresh-manual" type="button" class="btn-secondary">
+          Actualizar ahora
+        </button>
+      </div>
+    </header>
+
+    <!-- Global Alert Banner -->
+    <div id="staff-alert" class="alert-banner" role="alert"></div>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-bar" aria-label="Secciones del panel">
+      <button type="button" class="tab-btn active" data-tab="tab-pending">
+        Pendientes
+        <span id="badge-pending-count" class="tab-badge" style="display: none;">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="tab-ready">
+        Para entregar
+        <span id="badge-ready-count" class="tab-badge" style="display: none; background: #3b82f6;">0</span>
+      </button>
+      <button type="button" class="tab-btn" data-tab="tab-products">
+        Productos
+      </button>
+      <button type="button" class="tab-btn" data-tab="tab-settings">
+        Ajustes
+      </button>
+    </nav>
+
+    <!-- TAB 1: Pendientes -->
+    <section id="tab-pending" class="tab-panel active" aria-labelledby="heading-pending">
+      <div class="panel-header">
+        <h2 id="heading-pending">Pedidos Recibido, ordenados por franja</h2>
+        <p>Prepara los pedidos y márcalos como listos para que los estudiantes puedan recogerlos.</p>
+      </div>
+      <div id="pending-orders-container" class="orders-grid">
+        <div class="empty-card">Cargando pedidos pendientes...</div>
+      </div>
+    </section>
+
+    <!-- TAB 2: Para entregar -->
+    <section id="tab-ready" class="tab-panel" aria-labelledby="heading-ready">
+      <div class="panel-header">
+        <h2 id="heading-ready">Pedidos para entregar</h2>
+        <p>Pedidos en estado Listo en espera de ser reclamados en la caja.</p>
+      </div>
+      <div id="ready-orders-container" class="orders-grid">
+        <div class="empty-card">Cargando pedidos para entregar...</div>
+      </div>
+    </section>
+
+    <!-- TAB 3: Productos -->
+    <section id="tab-products" class="tab-panel" aria-labelledby="heading-products">
+      <div class="panel-header">
+        <h2 id="heading-products">Gestión de productos y precios</h2>
+        <p>Registra nuevos productos, actualiza precios y marca productos agotados o disponibles.</p>
+      </div>
+
+      <div class="products-layout">
+        <!-- New Product Form (CF-MENU-0001) -->
+        <div class="product-form-box">
+          <h3>Registrar producto</h3>
+          <form id="form-register-product" novalidate>
+            <div class="form-group">
+              <label for="input-product-name">Nombre</label>
+              <input
+                type="text"
+                id="input-product-name"
+                class="form-control"
+                placeholder="Ej. Almuerzo corriente"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="select-product-category">Categoría</label>
+              <select id="select-product-category" class="form-control" required>
+                <option value="lunch">Almuerzo</option>
+                <option value="drink">Bebida</option>
+                <option value="snack">Snack</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="input-product-price">Precio (COP)</label>
+              <input
+                type="number"
+                id="input-product-price"
+                class="form-control"
+                placeholder="Ej. 12000"
+                min="1"
+                step="100"
+                required
+              />
+            </div>
+
+            <button id="btn-save-product" type="submit" class="btn-submit-form">
+              Guardar
+            </button>
+          </form>
+        </div>
+
+        <!-- Products List (CF-MENU-0002, CF-MENU-0003, CF-MENU-0004) -->
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Categoría</th>
+                <th>Precio actual</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+                <th>Unidades del día</th>
+              </tr>
+            </thead>
+            <tbody id="products-table-body">
+              <tr>
+                <td colspan="6" class="empty-card">Cargando productos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Ajustes (Sprint 5 Placeholder) -->
+    <section id="tab-settings" class="tab-panel" aria-labelledby="heading-settings">
+      <div class="panel-header">
+        <h2 id="heading-settings">Configuración del servicio</h2>
+        <p>Cupo máximo de pedidos por franja y rangos de horario.</p>
+      </div>
+
+      <div class="settings-card">
+        <h3>Cupo y Horarios</h3>
+        <p>Los ajustes de cupo por franja y horario se configurarán en el Sprint 5 (CF-PEDI-0009).</p>
+
+        <div class="form-group">
+          <label>Cupo máximo por franja</label>
+          <input type="number" class="form-control" value="10" disabled />
+        </div>
+
+        <div class="form-group">
+          <label>Hora de inicio</label>
+          <input type="text" class="form-control" value="11:30" disabled />
+        </div>
+
+        <div class="form-group">
+          <label>Hora de fin</label>
+          <input type="text" class="form-control" value="14:00" disabled />
+        </div>
+
+        <button type="button" class="btn-submit-form" disabled style="background-color: #9ca3af; cursor: not-allowed;">
+          Guardar ajustes (Sprint 5)
+        </button>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // Constants & Translations
+    // -------------------------------------------------------------
+    const CATEGORY_LABELS = {
+      lunch: 'Almuerzo',
+      drink: 'Bebida',
+      snack: 'Snack'
+    };
+
+    const STATUS_LABELS = {
+      AVAILABLE: 'Disponible',
+      SOLD_OUT: 'Agotado'
+    };
+
+    // -------------------------------------------------------------
+    // Application State
+    // -------------------------------------------------------------
+    const state = {
+      currentTab: 'tab-pending',
+      pendingOrders: [],
+      readyOrders: [],
+      products: [],
+      autoRefreshIntervalId: null,
+      isActionInProgress: false
+    };
+
+    // -------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------
+    function formatCOP(amount) {
+      const rounded = Math.round(Number(amount) || 0);
+      return '$' + rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function showAlert(message, isError = true) {
+      const alertBox = document.getElementById('staff-alert');
+      alertBox.textContent = message;
+      alertBox.className = 'alert-banner ' + (isError ? 'error' : 'success');
+      alertBox.style.display = 'block';
+    }
+
+    function clearAlert() {
+      const alertBox = document.getElementById('staff-alert');
+      alertBox.textContent = '';
+      alertBox.style.display = 'none';
+    }
+
+    // -------------------------------------------------------------
+    // Tab Navigation
+    // -------------------------------------------------------------
+    function setupTabs() {
+      const tabButtons = document.querySelectorAll('.tab-btn');
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabButtons.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          const targetTabId = btn.dataset.tab;
+          state.currentTab = targetTabId;
+
+          document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.remove('active');
+          });
+
+          const activePanel = document.getElementById(targetTabId);
+          if (activePanel) {
+            activePanel.classList.add('active');
+          }
+
+          clearAlert();
+          refreshCurrentTab();
+        });
+      });
+    }
+
+    function refreshCurrentTab() {
+      if (state.currentTab === 'tab-pending') {
+        fetchPendingOrders();
+      } else if (state.currentTab === 'tab-ready') {
+        fetchReadyOrders();
+      } else if (state.currentTab === 'tab-products') {
+        fetchProducts();
+      }
+    }
+
+    // -------------------------------------------------------------
+    // TAB 1: Pendientes (CF-PEDI-0004, CF-PEDI-0005)
+    // -------------------------------------------------------------
+    async function fetchPendingOrders() {
+      const container = document.getElementById('pending-orders-container');
+      const badge = document.getElementById('badge-pending-count');
+
+      try {
+        const response = await fetch('/api/orders/orders?status=RECEIVED');
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          showAlert(err.detail || 'Error al obtener pedidos pendientes', true);
+          return;
+        }
+
+        const data = await response.json();
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+        state.pendingOrders = orders;
+
+        // Update badge
+        if (orders.length > 0) {
+          badge.textContent = orders.length.toString();
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+
+        renderPendingOrders(orders, data.message);
+      } catch (err) {
+        // Silent error or fallback on polling
+      }
+    }
+
+    function renderPendingOrders(orders, defaultMessage) {
+      const container = document.getElementById('pending-orders-container');
+      container.replaceChildren();
+
+      if (!orders || orders.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-card';
+        // Exact message from acceptance criteria
+        emptyDiv.textContent = defaultMessage || 'No hay pedidos pendientes';
+        container.appendChild(emptyDiv);
+        return;
+      }
+
+      orders.forEach(order => {
+        const card = document.createElement('div');
+        card.className = 'order-card';
+
+        // Main info
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'order-main-info';
+
+        const headline = document.createElement('div');
+        headline.className = 'order-headline';
+
+        const numTag = document.createElement('span');
+        numTag.className = 'order-number-tag';
+        numTag.textContent = '#' + order.number;
+
+        const slotTag = document.createElement('span');
+        slotTag.className = 'order-slot-tag';
+        slotTag.textContent = order.slot;
+
+        const customerSpan = document.createElement('span');
+        customerSpan.textContent = order.customer_name;
+
+        headline.appendChild(numTag);
+        headline.appendChild(slotTag);
+        headline.appendChild(customerSpan);
+        infoDiv.appendChild(headline);
+
+        // Items list
+        const itemsDiv = document.createElement('div');
+        itemsDiv.className = 'order-items-summary';
+        const itemsText = (order.items || [])
+          .map(it => it.quantity + ' ' + it.product_name)
+          .join(', ');
+        itemsDiv.textContent = itemsText || 'Sin productos detallados';
+        infoDiv.appendChild(itemsDiv);
+
+        // Meta (total & code)
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'order-meta-info';
+        metaDiv.textContent = 'Código: ' + (order.student_code || '--') + ' · Total: ' + formatCOP(order.total);
+        infoDiv.appendChild(metaDiv);
+
+        card.appendChild(infoDiv);
+
+        // Actions: button "Listo" (CF-PEDI-0005)
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'order-actions';
+
+        const readyBtn = document.createElement('button');
+        readyBtn.type = 'button';
+        readyBtn.className = 'btn-ready';
+        readyBtn.textContent = 'Listo';
+
+        readyBtn.addEventListener('click', async () => {
+          await markOrderAsReady(order.number, readyBtn);
+        });
+
+        actionsDiv.appendChild(readyBtn);
+        card.appendChild(actionsDiv);
+
+        container.appendChild(card);
+      });
+    }
+
+    async function markOrderAsReady(orderNumber, buttonElement) {
+      clearAlert();
+
+      // Requirement 1: disable action button during request
+      buttonElement.disabled = true;
+      buttonElement.textContent = 'Marcando...';
+
+      try {
+        const response = await fetch('/api/orders/orders/' + encodeURIComponent(orderNumber) + '/ready', {
+          method: 'POST'
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          showAlert(errData.detail || 'Error al marcar el pedido como listo', true);
+          return;
+        }
+
+        showAlert('Pedido #' + orderNumber + ' marcado como Listo.', false);
+        await fetchPendingOrders();
+        await fetchReadyOrders();
+      } catch (err) {
+        showAlert('Error de conexión al marcar el pedido como listo', true);
+      } finally {
+        buttonElement.disabled = false;
+        buttonElement.textContent = 'Listo';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // TAB 2: Para entregar (CF-PEDI-0005, space for CF-PEDI-0007)
+    // -------------------------------------------------------------
+    async function fetchReadyOrders() {
+      const container = document.getElementById('ready-orders-container');
+      const badge = document.getElementById('badge-ready-count');
+
+      try {
+        const response = await fetch('/api/orders/orders?status=READY');
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+        state.readyOrders = orders;
+
+        if (orders.length > 0) {
+          badge.textContent = orders.length.toString();
+          badge.style.display = 'inline-block';
+        } else {
+          badge.style.display = 'none';
+        }
+
+        renderReadyOrders(orders);
+      } catch (err) {
+        // Fallback
+      }
+    }
+
+    function renderReadyOrders(orders) {
+      const container = document.getElementById('ready-orders-container');
+      container.replaceChildren();
+
+      if (!orders || orders.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'empty-card';
+        emptyDiv.textContent = 'No hay pedidos listos para entregar';
+        container.appendChild(emptyDiv);
+        return;
+      }
+
+      orders.forEach(order => {
+        const card = document.createElement('div');
+        card.className = 'order-card';
+
+        // Main info
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'order-main-info';
+
+        const headline = document.createElement('div');
+        headline.className = 'order-headline';
+
+        const numTag = document.createElement('span');
+        numTag.className = 'order-number-tag';
+        numTag.textContent = '#' + order.number;
+
+        const slotTag = document.createElement('span');
+        slotTag.className = 'order-slot-tag';
+        slotTag.textContent = order.slot;
+
+        const customerSpan = document.createElement('span');
+        customerSpan.textContent = order.customer_name;
+
+        const priceSpan = document.createElement('span');
+        priceSpan.style.color = 'var(--primary-color)';
+        priceSpan.textContent = '· ' + formatCOP(order.total);
+
+        headline.appendChild(numTag);
+        headline.appendChild(slotTag);
+        headline.appendChild(customerSpan);
+        headline.appendChild(priceSpan);
+        infoDiv.appendChild(headline);
+
+        // Items list
+        const itemsDiv = document.createElement('div');
+        itemsDiv.className = 'order-items-summary';
+        const itemsText = (order.items || [])
+          .map(it => it.quantity + ' ' + it.product_name)
+          .join(', ');
+        itemsDiv.textContent = itemsText || 'Sin productos detallados';
+        infoDiv.appendChild(itemsDiv);
+
+        // Student code
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'order-meta-info';
+        metaDiv.textContent = 'Código: ' + (order.student_code || '--');
+        infoDiv.appendChild(metaDiv);
+
+        card.appendChild(infoDiv);
+
+        // Sprint 4 reserved space (Payment & Deliver)
+        const sprint4Div = document.createElement('div');
+        sprint4Div.className = 'sprint4-actions';
+
+        const btnsRow = document.createElement('div');
+        btnsRow.className = 'sprint4-buttons';
+
+        const cashBtn = document.createElement('button');
+        cashBtn.type = 'button';
+        cashBtn.className = 'btn-placeholder';
+        cashBtn.disabled = true;
+        cashBtn.textContent = 'Efectivo';
+
+        const transferBtn = document.createElement('button');
+        transferBtn.type = 'button';
+        transferBtn.className = 'btn-placeholder';
+        transferBtn.disabled = true;
+        transferBtn.textContent = 'Transferencia';
+
+        const deliverBtn = document.createElement('button');
+        deliverBtn.type = 'button';
+        deliverBtn.className = 'btn-placeholder';
+        deliverBtn.disabled = true;
+        deliverBtn.style.color = '#64748b';
+        deliverBtn.style.fontWeight = '700';
+        deliverBtn.textContent = 'Entregado';
+
+        btnsRow.appendChild(cashBtn);
+        btnsRow.appendChild(transferBtn);
+        btnsRow.appendChild(deliverBtn);
+
+        const noteSpan = document.createElement('span');
+        noteSpan.className = 'sprint-note';
+        noteSpan.textContent = '(Entrega y pago disponibles en Sprint 4)';
+
+        sprint4Div.appendChild(btnsRow);
+        sprint4Div.appendChild(noteSpan);
+        card.appendChild(sprint4Div);
+
+        container.appendChild(card);
+      });
+    }
+
+    // -------------------------------------------------------------
+    // TAB 3: Productos (CF-MENU-0001, CF-MENU-0003, CF-MENU-0004)
+    // -------------------------------------------------------------
+    async function fetchProducts() {
+      const tableBody = document.getElementById('products-table-body');
+
+      try {
+        const response = await fetch('/api/menu/menu?category=all');
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          showAlert(err.detail || 'Error al obtener productos', true);
+          return;
+        }
+
+        const data = await response.json();
+        const products = Array.isArray(data.products) ? data.products : [];
+        state.products = products;
+        renderProductsTable(products);
+      } catch (err) {
+        showAlert('Error de conexión al obtener productos', true);
+      }
+    }
+
+    function renderProductsTable(products) {
+      const tbody = document.getElementById('products-table-body');
+      tbody.replaceChildren();
+
+      if (!products || products.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 6;
+        td.className = 'empty-card';
+        td.textContent = 'La cafetería aún no ha publicado el menú de hoy';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      products.forEach(prod => {
+        const tr = document.createElement('tr');
+
+        // Name
+        const tdName = document.createElement('td');
+        tdName.style.fontWeight = '600';
+        tdName.textContent = prod.name;
+        tr.appendChild(tdName);
+
+        // Category
+        const tdCat = document.createElement('td');
+        tdCat.textContent = CATEGORY_LABELS[prod.category] || prod.category;
+        tr.appendChild(tdCat);
+
+        // Price & Edit action (CF-MENU-0004)
+        const tdPrice = document.createElement('td');
+        const priceBox = document.createElement('div');
+        priceBox.className = 'price-edit-cell';
+
+        const priceInput = document.createElement('input');
+        priceInput.type = 'number';
+        priceInput.className = 'input-mini-price';
+        priceInput.min = '1';
+        priceInput.step = '100';
+        priceInput.value = prod.price;
+
+        const priceBtn = document.createElement('button');
+        priceBtn.type = 'button';
+        priceBtn.className = 'btn-mini';
+        priceBtn.textContent = 'Cambiar precio';
+
+        priceBtn.addEventListener('click', async () => {
+          await handleUpdatePrice(prod.id, priceInput.value, priceBtn);
+        });
+
+        priceBox.appendChild(priceInput);
+        priceBox.appendChild(priceBtn);
+        tdPrice.appendChild(priceBox);
+        tr.appendChild(tdPrice);
+
+        // Status badge
+        const tdStatus = document.createElement('td');
+        const statusSpan = document.createElement('span');
+        const isAvailable = prod.status === 'AVAILABLE';
+        statusSpan.className = 'status-badge ' + (isAvailable ? 'available' : 'sold-out');
+        statusSpan.textContent = STATUS_LABELS[prod.status] || prod.status;
+        tdStatus.appendChild(statusSpan);
+        tr.appendChild(tdStatus);
+
+        // Action: Toggle Status (CF-MENU-0003)
+        const tdAction = document.createElement('td');
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'btn-mini btn-toggle-status';
+
+        if (isAvailable) {
+          toggleBtn.textContent = 'Marcar como agotado';
+          toggleBtn.addEventListener('click', async () => {
+            await handleUpdateStatus(prod.id, 'SOLD_OUT', toggleBtn);
+          });
+        } else {
+          toggleBtn.textContent = 'Marcar como disponible';
+          toggleBtn.addEventListener('click', async () => {
+            await handleUpdateStatus(prod.id, 'AVAILABLE', toggleBtn);
+          });
+        }
+        tdAction.appendChild(toggleBtn);
+        tr.appendChild(tdAction);
+
+        // Stock (Sprint 5 space)
+        const tdStock = document.createElement('td');
+        tdStock.style.color = 'var(--text-muted)';
+        tdStock.style.fontSize = '0.85rem';
+        tdStock.textContent = '(Sprint 5)';
+        tr.appendChild(tdStock);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Create Product (CF-MENU-0001)
+    async function handleRegisterProduct(e) {
+      e.preventDefault();
+      clearAlert();
+
+      const nameInput = document.getElementById('input-product-name');
+      const categorySelect = document.getElementById('select-product-category');
+      const priceInput = document.getElementById('input-product-price');
+      const submitBtn = document.getElementById('btn-save-product');
+
+      const name = nameInput.value.trim();
+      const category = categorySelect.value;
+      const priceVal = priceInput.value.trim();
+
+      // Client validation according to criteria
+      if (!name || !category || !priceVal) {
+        showAlert('Complete los campos obligatorios', true);
+        return;
+      }
+
+      const price = parseFloat(priceVal);
+      if (isNaN(price) || price <= 0) {
+        showAlert('El precio debe ser un número mayor a 0', true);
+        return;
+      }
+
+      // Requirement 1: disable action button during request
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Guardando...';
+
+      try {
+        const response = await fetch('/api/menu/products', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: name,
+            category: category,
+            price: price
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          showAlert(errData.detail || 'Error al registrar el producto', true);
+          return;
+        }
+
+        showAlert('Producto registrado con éxito.', false);
+        nameInput.value = '';
+        priceInput.value = '';
+        await fetchProducts();
+      } catch (err) {
+        showAlert('Error de conexión al registrar el producto', true);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Guardar';
+      }
+    }
+
+    // Update Status (CF-MENU-0003)
+    async function handleUpdateStatus(productId, newStatus, buttonElement) {
+      clearAlert();
+
+      // Requirement 1: disable button during request
+      buttonElement.disabled = true;
+      buttonElement.textContent = 'Actualizando...';
+
+      try {
+        const response = await fetch('/api/menu/products/' + encodeURIComponent(productId) + '/status', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            status: newStatus
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          showAlert(errData.detail || 'Error al actualizar estado del producto', true);
+          return;
+        }
+
+        showAlert('Estado del producto actualizado.', false);
+        await fetchProducts();
+      } catch (err) {
+        showAlert('Error de conexión al actualizar estado', true);
+      } finally {
+        buttonElement.disabled = false;
+      }
+    }
+
+    // Update Price (CF-MENU-0004)
+    async function handleUpdatePrice(productId, newPriceStr, buttonElement) {
+      clearAlert();
+
+      const price = parseFloat(newPriceStr);
+      if (isNaN(price) || price <= 0) {
+        showAlert('El precio debe ser un número mayor a 0', true);
+        return;
+      }
+
+      // Requirement 1: disable button during request
+      buttonElement.disabled = true;
+      buttonElement.textContent = 'Guardando...';
+
+      try {
+        const response = await fetch('/api/menu/products/' + encodeURIComponent(productId) + '/price', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            price: price
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          showAlert(errData.detail || 'Error al actualizar el precio', true);
+          return;
+        }
+
+        showAlert('Precio actualizado a ' + formatCOP(price) + '.', false);
+        await fetchProducts();
+      } catch (err) {
+        showAlert('Error de conexión al actualizar precio', true);
+      } finally {
+        buttonElement.disabled = false;
+        buttonElement.textContent = 'Cambiar precio';
+      }
+    }
+
+    // -------------------------------------------------------------
+    // Initialization & Auto-refresh Polling
+    // -------------------------------------------------------------
+    document.addEventListener('DOMContentLoaded', () => {
+      setupTabs();
+
+      // Initial loads
+      fetchPendingOrders();
+      fetchReadyOrders();
+
+      // Auto-refresh pending and ready orders every 10 seconds
+      state.autoRefreshIntervalId = setInterval(() => {
+        if (state.currentTab === 'tab-pending') {
+          fetchPendingOrders();
+        } else if (state.currentTab === 'tab-ready') {
+          fetchReadyOrders();
+        }
+      }, 10000);
+
+      // Manual refresh button
+      const manualBtn = document.getElementById('btn-refresh-manual');
+      manualBtn.addEventListener('click', () => {
+        refreshCurrentTab();
+      });
+
+      // Register product form
+      const productForm = document.getElementById('form-register-product');
+      productForm.addEventListener('submit', handleRegisterProduct);
+    });
+  </script>
 </body>
 </html>
