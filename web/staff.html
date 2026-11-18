@@ -1129,44 +1129,81 @@
 
         card.appendChild(infoDiv);
 
-        // Sprint 4 reserved space (Payment & Deliver)
-        const sprint4Div = document.createElement('div');
-        sprint4Div.className = 'sprint4-actions';
+        // Payment method selector + Deliver button (CF-PEDI-0007)
+        const deliveryDiv = document.createElement('div');
+        deliveryDiv.className = 'delivery-actions';
 
-        const btnsRow = document.createElement('div');
-        btnsRow.className = 'sprint4-buttons';
+        // Payment toggle buttons
+        const paymentRow = document.createElement('div');
+        paymentRow.className = 'delivery-actions';
+        paymentRow.style.marginBottom = '0';
+
+        let selectedPayment = null;
 
         const cashBtn = document.createElement('button');
         cashBtn.type = 'button';
-        cashBtn.className = 'btn-placeholder';
-        cashBtn.disabled = true;
+        cashBtn.className = 'btn-payment';
         cashBtn.textContent = 'Efectivo';
 
         const transferBtn = document.createElement('button');
         transferBtn.type = 'button';
-        transferBtn.className = 'btn-placeholder';
-        transferBtn.disabled = true;
+        transferBtn.className = 'btn-payment';
         transferBtn.textContent = 'Transferencia';
+
+        function selectPayment(method, activeBtn, otherBtn) {
+          selectedPayment = method;
+          activeBtn.classList.add('selected');
+          otherBtn.classList.remove('selected');
+        }
+
+        cashBtn.addEventListener('click', () => selectPayment('CASH', cashBtn, transferBtn));
+        transferBtn.addEventListener('click', () => selectPayment('TRANSFER', transferBtn, cashBtn));
 
         const deliverBtn = document.createElement('button');
         deliverBtn.type = 'button';
-        deliverBtn.className = 'btn-placeholder';
-        deliverBtn.disabled = true;
-        deliverBtn.style.color = '#64748b';
-        deliverBtn.style.fontWeight = '700';
+        deliverBtn.className = 'btn-deliver';
         deliverBtn.textContent = 'Entregado';
 
-        btnsRow.appendChild(cashBtn);
-        btnsRow.appendChild(transferBtn);
-        btnsRow.appendChild(deliverBtn);
+        deliverBtn.addEventListener('click', async () => {
+          if (!selectedPayment) {
+            showAlert('Selecciona el medio de pago antes de marcar como entregado.', true);
+            return;
+          }
+          deliverBtn.disabled = true;
+          cashBtn.disabled = true;
+          transferBtn.disabled = true;
+          deliverBtn.textContent = 'Procesando...';
+          try {
+            const response = await fetch('/api/orders/orders/' + encodeURIComponent(order.number) + '/deliver', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ payment_method: selectedPayment }),
+            });
+            if (!response.ok) {
+              const err = await response.json().catch(() => ({}));
+              showAlert(err.detail || 'No se pudo registrar la entrega', true);
+              deliverBtn.disabled = false;
+              cashBtn.disabled = false;
+              transferBtn.disabled = false;
+              deliverBtn.textContent = 'Entregado';
+              return;
+            }
+            await fetchReadyOrders();
+            await fetchSalesToday();
+          } catch (err) {
+            showAlert('Error de conexión al registrar entrega', true);
+            deliverBtn.disabled = false;
+            cashBtn.disabled = false;
+            transferBtn.disabled = false;
+            deliverBtn.textContent = 'Entregado';
+          }
+        });
 
-        const noteSpan = document.createElement('span');
-        noteSpan.className = 'sprint-note';
-        noteSpan.textContent = '(Entrega y pago disponibles en Sprint 4)';
-
-        sprint4Div.appendChild(btnsRow);
-        sprint4Div.appendChild(noteSpan);
-        card.appendChild(sprint4Div);
+        paymentRow.appendChild(cashBtn);
+        paymentRow.appendChild(transferBtn);
+        deliveryDiv.appendChild(paymentRow);
+        deliveryDiv.appendChild(deliverBtn);
+        card.appendChild(deliveryDiv);
 
         container.appendChild(card);
       });
@@ -1427,6 +1464,23 @@
     }
 
     // -------------------------------------------------------------
+    // Sales Today (CF-PEDI-0007)
+    // -------------------------------------------------------------
+    async function fetchSalesToday() {
+      try {
+        const response = await fetch('/api/orders/sales/today');
+        if (!response.ok) return;
+        const data = await response.json();
+        document.getElementById('sales-total-amount').textContent = formatCOP(data.total);
+        document.getElementById('sales-cash-amount').textContent = formatCOP(data.cash);
+        document.getElementById('sales-transfer-amount').textContent = formatCOP(data.transfer);
+        document.getElementById('sales-delivered-count').textContent = data.count.toString();
+      } catch (err) {
+        // silent — sales summary is non-critical
+      }
+    }
+
+    // -------------------------------------------------------------
     // Initialization & Auto-refresh Polling
     // -------------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
@@ -1435,6 +1489,7 @@
       // Initial loads
       fetchPendingOrders();
       fetchReadyOrders();
+      fetchSalesToday();
 
       // Auto-refresh pending and ready orders every 10 seconds
       state.autoRefreshIntervalId = setInterval(() => {
@@ -1442,6 +1497,7 @@
           fetchPendingOrders();
         } else if (state.currentTab === 'tab-ready') {
           fetchReadyOrders();
+          fetchSalesToday();
         }
       }, 10000);
 
