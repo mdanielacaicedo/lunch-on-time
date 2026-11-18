@@ -1092,3 +1092,432 @@ class TestConfigEndpoints:
         assert slot_1215["status"] == "full"
 
 
+# ====================================================================
+# Sprint 4 · CF-PEDI-0006 · Consultar estado del pedido
+# ====================================================================
+
+class TestQueryOrderStatus:
+    """CF-PEDI-0006: Consultar estado de un pedido por su número."""
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario1_query_received_order_privacy(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 1: Consultar pedido del día devuelve status y slot; por privacidad NO incluye nombre, código, items ni total."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Michell Caicedo",
+                "student_code": "461224000",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        assert post_resp.status_code == 201
+        number = post_resp.json()["number"]
+
+        get_resp = await client.get(f"/orders/{number}")
+        assert get_resp.status_code == 200
+        data = get_resp.json()
+        assert data["number"] == number
+        assert data["status"] == "RECEIVED"
+        assert data["slot"] == "12:15"
+        assert data.get("message") is None
+        # Privacidad: no expone datos sensibles del estudiante ni items
+        assert "customer_name" not in data
+        assert "student_code" not in data
+        assert "items" not in data
+        assert "total" not in data
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario2_query_ready_order_shows_message(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 2: Cuando el pedido está Listo, muestra 'Tu pedido está listo, recógelo en la caja de pedidos anticipados'."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Laura P",
+                "student_code": "461224001",
+                "slot": "12:30",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+
+        # Marcar como Listo
+        await client.post(f"/orders/{number}/ready")
+
+        get_resp = await client.get(f"/orders/{number}")
+        assert get_resp.status_code == 200
+        data = get_resp.json()
+        assert data["status"] == "READY"
+        assert data["message"] == "Tu pedido está listo, recógelo en la caja de pedidos anticipados"
+
+    @pytest.mark.asyncio
+    async def test_scenario3_query_nonexistent_order_404(self, client: AsyncClient):
+        """Esc. 3: Pedido inexistente o número inválido → 404 'No se encontró un pedido con ese número'."""
+        r1 = await client.get("/orders/999")
+        assert r1.status_code == 404
+        assert r1.json()["detail"] == "No se encontró un pedido con ese número"
+
+        r2 = await client.get("/orders/xyz")
+        assert r2.status_code == 404
+        assert r2.json()["detail"] == "No se encontró un pedido con ese número"
+
+
+# ====================================================================
+# Sprint 4 · CF-PEDI-0007 · Registrar entrega y medio de pago
+# ====================================================================
+
+class TestDeliverOrder:
+    """CF-PEDI-0007: Registrar entrega de pedido y ventas del día."""
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario1_deliver_cash_success(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 1: Pedido Listo se entrega con CASH → pasa a DELIVERED y guarda hora de entrega."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Julian O",
+                "student_code": "461224002",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+        await client.post(f"/orders/{number}/ready")
+
+        deliver_resp = await client.post(
+            f"/orders/{number}/deliver",
+            json={"payment_method": "CASH"},
+        )
+        assert deliver_resp.status_code == 200
+        data = deliver_resp.json()
+        assert data["status"] == "DELIVERED"
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario1_deliver_transfer_success(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 1: Pedido Listo se entrega con TRANSFER → pasa a DELIVERED."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Julian O",
+                "student_code": "461224002",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+        await client.post(f"/orders/{number}/ready")
+
+        deliver_resp = await client.post(
+            f"/orders/{number}/deliver",
+            json={"payment_method": "TRANSFER"},
+        )
+        assert deliver_resp.status_code == 200
+        data = deliver_resp.json()
+        assert data["status"] == "DELIVERED"
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario2_missing_payment_method_400(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 2: Sin medio de pago → 400 'Selecciona el medio de pago'."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Julian O",
+                "student_code": "461224002",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+        await client.post(f"/orders/{number}/ready")
+
+        # Sin payment_method en el body
+        r1 = await client.post(f"/orders/{number}/deliver", json={})
+        assert r1.status_code == 400
+        assert r1.json()["detail"] == "Selecciona el medio de pago"
+
+        # Con payment_method inválido
+        r2 = await client.post(f"/orders/{number}/deliver", json={"payment_method": "BITCOIN"})
+        assert r2.status_code == 400
+        assert r2.json()["detail"] == "Selecciona el medio de pago"
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario3_deliver_received_order_conflict_409(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 3: Entregar un pedido en estado Recibido → 409 'Primero marca el pedido como Listo'."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Julian O",
+                "student_code": "461224002",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+
+        # Intentar entregar estando en RECEIVED
+        deliver_resp = await client.post(
+            f"/orders/{number}/deliver",
+            json={"payment_method": "CASH"},
+        )
+        assert deliver_resp.status_code == 409
+        assert deliver_resp.json()["detail"] == "Primero marca el pedido como Listo"
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_get_sales_today_summary(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """GET /sales/today retorna suma de ventas por CASH y TRANSFER sólo de pedidos DELIVERED."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 10000.0, "quantity": 1}
+        ]
+        # Pedido 1: entregado con CASH ($10.000)
+        p1 = await client.post(
+            "/orders",
+            json={"customer_name": "A", "student_code": "1", "slot": "12:00", "items": [{"product_id": 1, "quantity": 1}]},
+        )
+        n1 = p1.json()["number"]
+        await client.post(f"/orders/{n1}/ready")
+        await client.post(f"/orders/{n1}/deliver", json={"payment_method": "CASH"})
+
+        # Pedido 2: entregado con TRANSFER ($20.000)
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 10000.0, "quantity": 2}
+        ]
+        p2 = await client.post(
+            "/orders",
+            json={"customer_name": "B", "student_code": "2", "slot": "12:15", "items": [{"product_id": 1, "quantity": 2}]},
+        )
+        n2 = p2.json()["number"]
+        await client.post(f"/orders/{n2}/ready")
+        await client.post(f"/orders/{n2}/deliver", json={"payment_method": "TRANSFER"})
+
+        # Pedido 3: en estado READY (no debe sumar a ventas)
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 15000.0, "quantity": 1}
+        ]
+        p3 = await client.post(
+            "/orders",
+            json={"customer_name": "C", "student_code": "3", "slot": "12:30", "items": [{"product_id": 1, "quantity": 1}]},
+        )
+        n3 = p3.json()["number"]
+        await client.post(f"/orders/{n3}/ready")
+
+        sales_resp = await client.get("/sales/today")
+        assert sales_resp.status_code == 200
+        sales = sales_resp.json()
+        assert sales["cash"] == 10000.0
+        assert sales["transfer"] == 20000.0
+        assert sales["total"] == 30000.0
+        assert sales["count"] == 2
+
+
+# ====================================================================
+# Sprint 4 · CF-PEDI-0008 · Cancelar pedido
+# ====================================================================
+
+class TestCancelOrder:
+    """CF-PEDI-0008: Cancelar pedido en estado Recibido y liberar franja/unidades."""
+
+    @pytest.mark.asyncio
+    @patch("app.main.release_products")
+    @patch("app.main.reserve_products")
+    async def test_scenario1_cancel_received_order_releases_units_and_frees_slot(
+        self, mock_reserve: AsyncMock, mock_release: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 1: Pedido Recibido se cancela con student_code correcto, devuelve unidades a menu-ms y libera franja."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo corriente", "unit_price": 12000.0, "quantity": 2}
+        ]
+        mock_release.return_value = None
+
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "Michell Caicedo",
+                "student_code": "461224000",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 2}],
+            },
+        )
+        assert post_resp.status_code == 201
+        number = post_resp.json()["number"]
+
+        # Cancelar pedido
+        cancel_resp = await client.post(
+            f"/orders/{number}/cancel",
+            json={"student_code": "461224000"},
+        )
+        assert cancel_resp.status_code == 200
+        assert cancel_resp.json()["status"] == "CANCELLED"
+
+        # Verifica que llamó a release_products con raise_on_error=True
+        mock_release.assert_awaited_once_with(
+            [{"product_id": 1, "quantity": 2}],
+            raise_on_error=True,
+        )
+
+        # Verifica que ya no aparece en pendientes
+        pending_resp = await client.get("/orders?status=RECEIVED")
+        assert pending_resp.status_code == 200
+        pending_orders = pending_resp.json()["orders"]
+        assert all(o["number"] != number for o in pending_orders)
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_cancel_order_wrong_student_code_403(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Código que no coincide con el pedido → 403 'El código estudiantil no coincide con el pedido'."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "User",
+                "student_code": "461224000",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+
+        cancel_resp = await client.post(
+            f"/orders/{number}/cancel",
+            json={"student_code": "999999999"},
+        )
+        assert cancel_resp.status_code == 403
+        assert cancel_resp.json()["detail"] == "El código estudiantil no coincide con el pedido"
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario3_cancel_ready_order_conflict_409(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 3: Pedido en estado Listo no se puede cancelar → 409 'Tu pedido ya fue preparado y no se puede cancelar'."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "User",
+                "student_code": "461224000",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+        await client.post(f"/orders/{number}/ready")
+
+        cancel_resp = await client.post(
+            f"/orders/{number}/cancel",
+            json={"student_code": "461224000"},
+        )
+        assert cancel_resp.status_code == 409
+        assert cancel_resp.json()["detail"] == "Tu pedido ya fue preparado y no se puede cancelar"
+
+    @pytest.mark.asyncio
+    @patch("app.main.reserve_products")
+    async def test_scenario3_cancel_delivered_order_conflict_409(
+        self, mock_reserve: AsyncMock, client: AsyncClient
+    ):
+        """Esc. 3: Pedido en estado Entregado no se puede cancelar → 409 'Tu pedido ya fue preparado y no se puede cancelar'."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "User",
+                "student_code": "461224000",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+        await client.post(f"/orders/{number}/ready")
+        await client.post(f"/orders/{number}/deliver", json={"payment_method": "CASH"})
+
+        cancel_resp = await client.post(
+            f"/orders/{number}/cancel",
+            json={"student_code": "461224000"},
+        )
+        assert cancel_resp.status_code == 409
+        assert cancel_resp.json()["detail"] == "Tu pedido ya fue preparado y no se puede cancelar"
+
+    @pytest.mark.asyncio
+    @patch("app.main.release_products")
+    @patch("app.main.reserve_products")
+    async def test_cancel_order_menu_ms_fails_503_order_not_cancelled(
+        self, mock_reserve: AsyncMock, mock_release: AsyncMock, client: AsyncClient, db_session
+    ):
+        """Si menu-ms no responde al liberar unidades → 503 y el pedido NO se cancela."""
+        mock_reserve.return_value = [
+            {"product_id": 1, "product_name": "Almuerzo", "unit_price": 12000.0, "quantity": 1}
+        ]
+        # Simular falla de menu-ms en release
+        mock_release.side_effect = MenuUnavailableError("No fue posible verificar el menú, intenta de nuevo en unos minutos")
+
+        post_resp = await client.post(
+            "/orders",
+            json={
+                "customer_name": "User",
+                "student_code": "461224000",
+                "slot": "12:15",
+                "items": [{"product_id": 1, "quantity": 1}],
+            },
+        )
+        number = post_resp.json()["number"]
+
+        cancel_resp = await client.post(
+            f"/orders/{number}/cancel",
+            json={"student_code": "461224000"},
+        )
+        assert cancel_resp.status_code == 503
+        assert cancel_resp.json()["detail"] == "No fue posible verificar el menú, intenta de nuevo en unos minutos"
+
+        # Verificar en DB que el pedido SIGUE en estado RECEIVED
+        res = await db_session.execute(select(Order).where(Order.number == int(number)))
+        order = res.scalars().first()
+        assert order.status == "RECEIVED"
+
+
+

@@ -108,3 +108,46 @@ class ConfigUpdate(BaseModel):
         return v
 
 
+class OrderStatusOut(BaseModel):
+    """Order status response for student query (CF-PEDI-0006)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    number: str
+    status: str
+    slot: str
+    message: Optional[str] = None
+
+
+class OrderDeliver(BaseModel):
+    """Payload for POST /orders/{number}/deliver (CF-PEDI-0007)."""
+
+    payment_method: Optional[str] = None
+
+    @field_validator("payment_method")
+    @classmethod
+    def validate_payment_method(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip().upper()
+            if v not in ("CASH", "TRANSFER"):
+                raise ValueError("Selecciona el medio de pago")
+        return v
+
+
+class OrderCancel(BaseModel):
+    """Payload for POST /orders/{number}/cancel (CF-PEDI-0008)."""
+
+    student_code: Optional[str] = None
+
+
+class SalesTodayOut(BaseModel):
+    """Sales report for today matching CF-PEDI-0007."""
+
+    date: str
+    cash: float
+    transfer: float
+    total: float
+    count: int
+
+
+

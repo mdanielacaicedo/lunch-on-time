@@ -67,14 +67,32 @@ async def reserve_products(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     raise MenuClientError(detail)
 
 
-async def release_products(items: List[Dict[str, Any]]) -> None:
-    """Compensating action: call menu-ms POST /products/release to return units.
+async def release_products(items: List[Dict[str, Any]], raise_on_error: bool = False) -> None:
+    """Call menu-ms POST /products/release to return units.
 
-    Best-effort, will not raise exception to the caller.
+    If raise_on_error is True (e.g. order cancellation), raises MenuUnavailableError
+    on timeout, connection error, or 5xx from menu-ms.
+    If raise_on_error is False (saga compensation), best-effort without raising.
     """
     url = f"{MENU_URL}/products/release"
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_SECONDS) as client:
-            await client.post(url, json=items)
+            resp = await client.post(url, json=items)
+            if raise_on_error and resp.status_code >= 500:
+                raise MenuUnavailableError(
+                    "No fue posible verificar el menú, intenta de nuevo en unos minutos"
+                )
+    except (httpx.TimeoutException, httpx.NetworkError, httpx.ConnectError) as exc:
+        logger.error(f"Failed to communicate with menu-ms at {url}: {exc}")
+        if raise_on_error:
+            raise MenuUnavailableError(
+                "No fue posible verificar el menú, intenta de nuevo en unos minutos"
+            ) from exc
     except Exception as exc:
+        if raise_on_error:
+            if isinstance(exc, MenuUnavailableError):
+                raise
+            raise MenuUnavailableError(
+                "No fue posible verificar el menú, intenta de nuevo en unos minutos"
+            ) from exc
         logger.error(f"Compensating action release_products failed: {exc}")

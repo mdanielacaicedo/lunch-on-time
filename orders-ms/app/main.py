@@ -46,10 +46,14 @@ from app.models import Config, Order, OrderItem
 from app.schemas import (
     ConfigOut,
     ConfigUpdate,
+    OrderCancel,
     OrderCreate,
+    OrderDeliver,
     OrderItemOut,
     OrderListOut,
     OrderOut,
+    OrderStatusOut,
+    SalesTodayOut,
     SlotOut,
 )
 
@@ -80,6 +84,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             return JSONResponse(status_code=400, content={"detail": msg})
         if "El cupo debe ser un número entero mayor a 0" in msg:
             return JSONResponse(status_code=400, content={"detail": msg})
+        if "Selecciona el medio de pago" in msg:
+            return JSONResponse(status_code=400, content={"detail": "Selecciona el medio de pago"})
     return JSONResponse(
         status_code=400,
         content={"detail": "Complete los campos obligatorios"},
@@ -409,6 +415,7 @@ async def mark_order_ready(number: str, db: AsyncSession = Depends(get_db)):
             Order.date == today,
             Order.number == num,
         )
+        .with_for_update()
     )
     res = await db.execute(stmt)
     order = res.scalars().first()
@@ -473,6 +480,262 @@ async def mark_order_ready(number: str, db: AsyncSession = Depends(get_db)):
             for it in order.items
         ],
     )
+
+
+# ---------- GET /orders/{number} (CF-PEDI-0006) ----------
+
+@app.get("/orders/{number}", response_model=OrderStatusOut)
+async def get_order_status(number: str, db: AsyncSession = Depends(get_db)):
+    """Retrieve order status and pickup slot for the student (CF-PEDI-0006)."""
+    try:
+        num = int(number)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    now_bogota = get_now_bogota()
+    today = now_bogota.date()
+
+    stmt = select(Order).where(Order.date == today, Order.number == num)
+    res = await db.execute(stmt)
+    order = res.scalars().first()
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    message = None
+    if order.status == "READY":
+        message = "Tu pedido está listo, recógelo en la caja de pedidos anticipados"
+
+    return OrderStatusOut(
+        number=f"{order.number:03d}",
+        status=order.status,
+        slot=order.slot,
+        message=message,
+    )
+
+
+# ---------- POST /orders/{number}/deliver (CF-PEDI-0007) ----------
+
+@app.post("/orders/{number}/deliver", response_model=OrderOut)
+async def deliver_order(
+    number: str,
+    body: OrderDeliver,
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark an order as DELIVERED and register payment method (CF-PEDI-0007)."""
+    if not body.payment_method or body.payment_method not in ("CASH", "TRANSFER"):
+        raise HTTPException(status_code=400, detail="Selecciona el medio de pago")
+
+    try:
+        num = int(number)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    now_bogota = get_now_bogota()
+    today = now_bogota.date()
+
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(
+            Order.date == today,
+            Order.number == num,
+        )
+        .with_for_update()
+    )
+    res = await db.execute(stmt)
+    order = res.scalars().first()
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    if order.status == "CANCELLED":
+        raise HTTPException(
+            status_code=409,
+            detail="Este pedido fue cancelado",
+        )
+
+    if order.status == "DELIVERED":
+        raise HTTPException(
+            status_code=409,
+            detail="Este pedido ya fue entregado",
+        )
+
+    if order.status == "RECEIVED":
+        raise HTTPException(
+            status_code=409,
+            detail="Primero marca el pedido como Listo",
+        )
+
+    order.status = "DELIVERED"
+    order.payment_method = body.payment_method
+    order.delivered_at = now_bogota
+    await db.commit()
+    await db.refresh(order)
+
+    return OrderOut(
+        number=f"{order.number:03d}",
+        status=order.status,
+        slot=order.slot,
+        total=float(order.total),
+        customer_name=order.customer_name,
+        student_code=order.student_code,
+        items=[
+            OrderItemOut(
+                product_id=it.product_id,
+                product_name=it.product_name,
+                unit_price=float(it.unit_price),
+                quantity=it.quantity,
+            )
+            for it in order.items
+        ],
+    )
+
+
+# ---------- POST /orders/{number}/cancel (CF-PEDI-0008) ----------
+
+@app.post("/orders/{number}/cancel", response_model=OrderOut)
+async def cancel_order(
+    number: str,
+    body: OrderCancel,
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel an advance order in RECEIVED status (CF-PEDI-0008)."""
+    if not body.student_code or not body.student_code.strip():
+        raise HTTPException(status_code=400, detail="Complete los campos obligatorios")
+
+    try:
+        num = int(number)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    now_bogota = get_now_bogota()
+    today = now_bogota.date()
+
+    stmt = (
+        select(Order)
+        .options(selectinload(Order.items))
+        .where(
+            Order.date == today,
+            Order.number == num,
+        )
+        .with_for_update()
+    )
+    res = await db.execute(stmt)
+    order = res.scalars().first()
+
+    if not order:
+        raise HTTPException(
+            status_code=404,
+            detail="No se encontró un pedido con ese número",
+        )
+
+    if order.student_code != body.student_code.strip():
+        raise HTTPException(
+            status_code=403,
+            detail="El código estudiantil no coincide con el pedido",
+        )
+
+    if order.status in ("READY", "DELIVERED"):
+        raise HTTPException(
+            status_code=409,
+            detail="Tu pedido ya fue preparado y no se puede cancelar",
+        )
+
+    if order.status == "CANCELLED":
+        raise HTTPException(
+            status_code=409,
+            detail="Este pedido fue cancelado",
+        )
+
+    # Return reserved items to menu-ms before cancelling
+    raw_items = [
+        {"product_id": it.product_id, "quantity": it.quantity}
+        for it in order.items
+    ]
+
+    # If menu-ms fails, raise_on_error=True raises MenuUnavailableError (503).
+    # Since commit is not called, order remains RECEIVED in DB.
+    await release_products(raw_items, raise_on_error=True)
+
+    order.status = "CANCELLED"
+    await db.commit()
+    await db.refresh(order)
+
+    return OrderOut(
+        number=f"{order.number:03d}",
+        status=order.status,
+        slot=order.slot,
+        total=float(order.total),
+        customer_name=order.customer_name,
+        student_code=order.student_code,
+        items=[
+            OrderItemOut(
+                product_id=it.product_id,
+                product_name=it.product_name,
+                unit_price=float(it.unit_price),
+                quantity=it.quantity,
+            )
+            for it in order.items
+        ],
+    )
+
+
+# ---------- GET /sales/today (CF-PEDI-0007) ----------
+
+@app.get("/sales/today", response_model=SalesTodayOut)
+async def get_sales_today(db: AsyncSession = Depends(get_db)):
+    """Total sales for today broken down by payment method (DELIVERED only)."""
+    now_bogota = get_now_bogota()
+    today = now_bogota.date()
+
+    stmt = (
+        select(Order.payment_method, func.sum(Order.total), func.count(Order.id))
+        .where(
+            Order.date == today,
+            Order.status == "DELIVERED",
+        )
+        .group_by(Order.payment_method)
+    )
+    res = await db.execute(stmt)
+    rows = res.all()
+
+    cash_total = 0.0
+    transfer_total = 0.0
+    total_count = 0
+
+    for pm, total_val, cnt in rows:
+        total_count += cnt
+        if pm == "CASH":
+            cash_total += float(total_val)
+        elif pm == "TRANSFER":
+            transfer_total += float(total_val)
+
+    grand_total = cash_total + transfer_total
+
+    return SalesTodayOut(
+        date=today.isoformat(),
+        cash=cash_total,
+        transfer=transfer_total,
+        total=grand_total,
+        count=total_count,
+    )
+
 
 
 # ---------- GET / PUT /config (CF-PEDI-0009, Section 8.2) ----------
