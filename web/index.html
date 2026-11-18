@@ -659,12 +659,33 @@
         </button>
       </form>
 
-      <!-- Sprint 4 placeholder -->
-      <footer class="app-footer">
-        <button id="btn-placeholder-cancel" type="button" class="placeholder-link">
-          Consultar o cancelar mi pedido
+      <!-- Sprint 4: Consultar o cancelar mi pedido (CF-PEDI-0006, CF-PEDI-0008) -->
+      <section id="lookup-section" class="order-form-card" style="margin-top: 16px;">
+        <h2 class="section-title">Consultar o cancelar mi pedido</h2>
+        <div id="lookup-alert" class="alert-box" role="alert" style="display:none;"></div>
+        <div class="form-group">
+          <label for="input-lookup-number">Número de pedido</label>
+          <input type="text" id="input-lookup-number" class="form-control" placeholder="Ej. 7" />
+        </div>
+        <button id="btn-lookup-order" type="button" class="btn-submit" style="margin-bottom: 14px;">
+          Consultar
         </button>
-      </footer>
+        <!-- Result panel (hidden initially) -->
+        <div id="lookup-result" style="display: none;">
+          <div id="lookup-status-display" class="cart-summary" style="margin-bottom: 14px;"></div>
+          <!-- Cancel sub-form (shown only when status is RECEIVED) -->
+          <div id="cancel-section" style="display: none;">
+            <div class="form-group">
+              <label for="input-cancel-code">Código estudiantil</label>
+              <input type="text" id="input-cancel-code" class="form-control" placeholder="Ej. 461224000" />
+            </div>
+            <button id="btn-cancel-order" type="button" class="btn-submit"
+                    style="background-color: var(--danger-color);">
+              Cancelar pedido
+            </button>
+          </div>
+        </div>
+      </section>
 
     </main>
 
@@ -1158,6 +1179,145 @@
     }
 
     // -------------------------------------------------------------
+    // Lookup & Cancel Order (CF-PEDI-0006, CF-PEDI-0008)
+    // -------------------------------------------------------------
+    const lookupState = { currentNumber: null, currentStatus: null };
+
+    async function handleLookupOrder() {
+      clearLookupAlert();
+      const numberInput = document.getElementById('input-lookup-number');
+      const lookupBtn = document.getElementById('btn-lookup-order');
+      const number = numberInput.value.trim();
+      if (!number) {
+        showLookupAlert('Ingresa el número de pedido', true);
+        return;
+      }
+
+      lookupBtn.disabled = true;
+      lookupBtn.textContent = 'Consultando...';
+
+      try {
+        const response = await fetch('/api/orders/orders/' + encodeURIComponent(number));
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          showLookupAlert(err.detail || 'No se encontró un pedido con ese número', true);
+          document.getElementById('lookup-result').style.display = 'none';
+          return;
+        }
+        const data = await response.json();
+        lookupState.currentNumber = data.number;
+        lookupState.currentStatus = data.status;
+        renderLookupResult(data);
+      } catch (err) {
+        showLookupAlert('No fue posible verificar el menú, intenta de nuevo en unos minutos', true);
+      } finally {
+        lookupBtn.disabled = false;
+        lookupBtn.textContent = 'Consultar';
+      }
+    }
+
+    function renderLookupResult(data) {
+      const resultDiv = document.getElementById('lookup-result');
+      const statusDisplay = document.getElementById('lookup-status-display');
+      const cancelSection = document.getElementById('cancel-section');
+
+      statusDisplay.replaceChildren();
+
+      const STATUS_LABELS = {
+        RECEIVED: 'Recibido',
+        READY: 'Listo',
+        DELIVERED: 'Entregado',
+        CANCELLED: 'Cancelado'
+      };
+
+      const rows = [
+        ['Pedido', '#' + data.number],
+        ['Estado', STATUS_LABELS[data.status] || data.status],
+        ['Hora de recogida', data.slot],
+      ];
+
+      rows.forEach(([label, value]) => {
+        const row = document.createElement('div');
+        row.className = 'cart-item-row';
+        const lSpan = document.createElement('span');
+        lSpan.className = 'cart-item-name';
+        lSpan.textContent = label;
+        const vSpan = document.createElement('span');
+        vSpan.className = 'cart-item-price';
+        vSpan.textContent = value;
+        row.appendChild(lSpan);
+        row.appendChild(vSpan);
+        statusDisplay.appendChild(row);
+      });
+
+      if (data.message) {
+        const msgDiv = document.createElement('div');
+        msgDiv.style.cssText = 'margin-top:10px;padding:10px;background:var(--success-bg);color:var(--success-color);border-radius:var(--radius-sm);font-weight:600;font-size:0.9rem;';
+        msgDiv.textContent = data.message;
+        statusDisplay.appendChild(msgDiv);
+      }
+
+      resultDiv.style.display = 'block';
+      cancelSection.style.display = data.status === 'RECEIVED' ? 'block' : 'none';
+      document.getElementById('input-cancel-code').value = '';
+    }
+
+    async function handleCancelOrder() {
+      clearLookupAlert();
+      const codeInput = document.getElementById('input-cancel-code');
+      const cancelBtn = document.getElementById('btn-cancel-order');
+      const studentCode = codeInput.value.trim();
+      const number = lookupState.currentNumber;
+
+      if (!studentCode) {
+        showLookupAlert('Ingresa tu código estudiantil', true);
+        return;
+      }
+      if (!number) return;
+
+      const confirmed = window.confirm('¿Seguro que deseas cancelar el pedido número ' + number + '?');
+      if (!confirmed) return;
+
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = 'Cancelando...';
+
+      try {
+        const response = await fetch('/api/orders/orders/' + encodeURIComponent(number) + '/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ student_code: studentCode }),
+        });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          showLookupAlert(err.detail || 'No se pudo cancelar el pedido', true);
+          return;
+        }
+        const data = await response.json();
+        lookupState.currentStatus = data.status;
+        renderLookupResult(data);
+        showLookupAlert('Pedido #' + number + ' cancelado.', false);
+      } catch (err) {
+        showLookupAlert('No fue posible verificar el menú, intenta de nuevo en unos minutos', true);
+      } finally {
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = 'Cancelar pedido';
+      }
+    }
+
+    function showLookupAlert(msg, isError) {
+      const el = document.getElementById('lookup-alert');
+      el.textContent = msg;
+      el.className = 'alert-box ' + (isError ? 'alert-error' : 'alert-success');
+      el.style.display = 'block';
+    }
+
+    function clearLookupAlert() {
+      const el = document.getElementById('lookup-alert');
+      el.textContent = '';
+      el.style.display = 'none';
+    }
+
+    // -------------------------------------------------------------
     // Category Tabs Filtering
     // -------------------------------------------------------------
     function setupCategoryPills() {
@@ -1192,10 +1352,11 @@
       const newOrderBtn = document.getElementById('btn-new-order');
       newOrderBtn.addEventListener('click', resetOrderView);
 
-      // Sprint 4 placeholder dialog
-      const placeholderBtn = document.getElementById('btn-placeholder-cancel');
-      placeholderBtn.addEventListener('click', () => {
-        showAlert('La consulta y cancelación de pedidos estarán disponibles en el Sprint 4.', false);
+      // Lookup & Cancel order listeners
+      document.getElementById('btn-lookup-order').addEventListener('click', handleLookupOrder);
+      document.getElementById('btn-cancel-order').addEventListener('click', handleCancelOrder);
+      document.getElementById('input-lookup-number').addEventListener('keydown', e => {
+        if (e.key === 'Enter') handleLookupOrder();
       });
     });
   </script>

@@ -329,34 +329,84 @@
       cursor: not-allowed;
     }
 
-    /* Reserved Buttons for Sprint 4 */
-    .sprint4-actions {
+    /* Sales summary bar (CF-PEDI-0007) */
+    .sales-summary-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .sales-card-metric {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
-      align-items: flex-end;
-      gap: 6px;
     }
 
-    .sprint4-buttons {
-      display: flex;
-      gap: 6px;
+    .sales-metric-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
     }
 
-    .btn-placeholder {
-      background-color: #f3f4f6;
-      border: 1px dashed #d1d5db;
-      color: #9ca3af;
-      font-size: 0.82rem;
+    .sales-metric-value {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--primary-color);
+    }
+
+    .btn-payment {
+      background-color: #ffffff;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      font-size: 0.85rem;
       font-weight: 600;
-      padding: 8px 12px;
+      padding: 8px 14px;
       border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-payment.selected {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border-color: var(--primary-color);
+      box-shadow: 0 2px 4px rgba(13, 122, 66, 0.2);
+    }
+
+    .btn-deliver {
+      background-color: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 8px 18px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn-deliver:hover:not(:disabled) {
+      background-color: #1d4ed8;
+    }
+
+    .btn-deliver:disabled {
+      background-color: #9ca3af;
       cursor: not-allowed;
     }
 
-    .sprint-note {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      font-style: italic;
+    .delivery-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
     }
 
     /* Empty States */
@@ -629,6 +679,27 @@
         <h2 id="heading-ready">Pedidos para entregar</h2>
         <p>Pedidos en estado Listo en espera de ser reclamados en la caja.</p>
       </div>
+
+      <!-- Resumen de ventas del día (CF-PEDI-0007) -->
+      <div id="sales-summary-container" class="sales-summary-bar">
+        <div class="sales-card-metric">
+          <span class="sales-metric-label">Ventas de hoy</span>
+          <span id="sales-total-amount" class="sales-metric-value">$0</span>
+        </div>
+        <div class="sales-card-metric">
+          <span class="sales-metric-label">Efectivo</span>
+          <span id="sales-cash-amount" class="sales-metric-value">$0</span>
+        </div>
+        <div class="sales-card-metric">
+          <span class="sales-metric-label">Transferencia</span>
+          <span id="sales-transfer-amount" class="sales-metric-value">$0</span>
+        </div>
+        <div class="sales-card-metric">
+          <span class="sales-metric-label">Entregados hoy</span>
+          <span id="sales-delivered-count" class="sales-metric-value">0</span>
+        </div>
+      </div>
+
       <div id="ready-orders-container" class="orders-grid">
         <div class="empty-card">Cargando pedidos para entregar...</div>
       </div>
@@ -1058,44 +1129,81 @@
 
         card.appendChild(infoDiv);
 
-        // Sprint 4 reserved space (Payment & Deliver)
-        const sprint4Div = document.createElement('div');
-        sprint4Div.className = 'sprint4-actions';
+        // Payment method selector + Deliver button (CF-PEDI-0007)
+        const deliveryDiv = document.createElement('div');
+        deliveryDiv.className = 'delivery-actions';
 
-        const btnsRow = document.createElement('div');
-        btnsRow.className = 'sprint4-buttons';
+        // Payment toggle buttons
+        const paymentRow = document.createElement('div');
+        paymentRow.className = 'delivery-actions';
+        paymentRow.style.marginBottom = '0';
+
+        let selectedPayment = null;
 
         const cashBtn = document.createElement('button');
         cashBtn.type = 'button';
-        cashBtn.className = 'btn-placeholder';
-        cashBtn.disabled = true;
+        cashBtn.className = 'btn-payment';
         cashBtn.textContent = 'Efectivo';
 
         const transferBtn = document.createElement('button');
         transferBtn.type = 'button';
-        transferBtn.className = 'btn-placeholder';
-        transferBtn.disabled = true;
+        transferBtn.className = 'btn-payment';
         transferBtn.textContent = 'Transferencia';
+
+        function selectPayment(method, activeBtn, otherBtn) {
+          selectedPayment = method;
+          activeBtn.classList.add('selected');
+          otherBtn.classList.remove('selected');
+        }
+
+        cashBtn.addEventListener('click', () => selectPayment('CASH', cashBtn, transferBtn));
+        transferBtn.addEventListener('click', () => selectPayment('TRANSFER', transferBtn, cashBtn));
 
         const deliverBtn = document.createElement('button');
         deliverBtn.type = 'button';
-        deliverBtn.className = 'btn-placeholder';
-        deliverBtn.disabled = true;
-        deliverBtn.style.color = '#64748b';
-        deliverBtn.style.fontWeight = '700';
+        deliverBtn.className = 'btn-deliver';
         deliverBtn.textContent = 'Entregado';
 
-        btnsRow.appendChild(cashBtn);
-        btnsRow.appendChild(transferBtn);
-        btnsRow.appendChild(deliverBtn);
+        deliverBtn.addEventListener('click', async () => {
+          if (!selectedPayment) {
+            showAlert('Selecciona el medio de pago antes de marcar como entregado.', true);
+            return;
+          }
+          deliverBtn.disabled = true;
+          cashBtn.disabled = true;
+          transferBtn.disabled = true;
+          deliverBtn.textContent = 'Procesando...';
+          try {
+            const response = await fetch('/api/orders/orders/' + encodeURIComponent(order.number) + '/deliver', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ payment_method: selectedPayment }),
+            });
+            if (!response.ok) {
+              const err = await response.json().catch(() => ({}));
+              showAlert(err.detail || 'No se pudo registrar la entrega', true);
+              deliverBtn.disabled = false;
+              cashBtn.disabled = false;
+              transferBtn.disabled = false;
+              deliverBtn.textContent = 'Entregado';
+              return;
+            }
+            await fetchReadyOrders();
+            await fetchSalesToday();
+          } catch (err) {
+            showAlert('Error de conexión al registrar entrega', true);
+            deliverBtn.disabled = false;
+            cashBtn.disabled = false;
+            transferBtn.disabled = false;
+            deliverBtn.textContent = 'Entregado';
+          }
+        });
 
-        const noteSpan = document.createElement('span');
-        noteSpan.className = 'sprint-note';
-        noteSpan.textContent = '(Entrega y pago disponibles en Sprint 4)';
-
-        sprint4Div.appendChild(btnsRow);
-        sprint4Div.appendChild(noteSpan);
-        card.appendChild(sprint4Div);
+        paymentRow.appendChild(cashBtn);
+        paymentRow.appendChild(transferBtn);
+        deliveryDiv.appendChild(paymentRow);
+        deliveryDiv.appendChild(deliverBtn);
+        card.appendChild(deliveryDiv);
 
         container.appendChild(card);
       });
@@ -1356,6 +1464,23 @@
     }
 
     // -------------------------------------------------------------
+    // Sales Today (CF-PEDI-0007)
+    // -------------------------------------------------------------
+    async function fetchSalesToday() {
+      try {
+        const response = await fetch('/api/orders/sales/today');
+        if (!response.ok) return;
+        const data = await response.json();
+        document.getElementById('sales-total-amount').textContent = formatCOP(data.total);
+        document.getElementById('sales-cash-amount').textContent = formatCOP(data.cash);
+        document.getElementById('sales-transfer-amount').textContent = formatCOP(data.transfer);
+        document.getElementById('sales-delivered-count').textContent = data.count.toString();
+      } catch (err) {
+        // silent — sales summary is non-critical
+      }
+    }
+
+    // -------------------------------------------------------------
     // Initialization & Auto-refresh Polling
     // -------------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
@@ -1364,6 +1489,7 @@
       // Initial loads
       fetchPendingOrders();
       fetchReadyOrders();
+      fetchSalesToday();
 
       // Auto-refresh pending and ready orders every 10 seconds
       state.autoRefreshIntervalId = setInterval(() => {
@@ -1371,6 +1497,7 @@
           fetchPendingOrders();
         } else if (state.currentTab === 'tab-ready') {
           fetchReadyOrders();
+          fetchSalesToday();
         }
       }, 10000);
 
