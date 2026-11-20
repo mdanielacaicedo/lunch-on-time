@@ -62,7 +62,9 @@ def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         url = get_database_url()
-        _engine = create_async_engine(url, echo=False)
+        _engine = create_async_engine(
+            url, echo=False, pool_pre_ping=True, pool_recycle=300
+        )
     return _engine
 
 

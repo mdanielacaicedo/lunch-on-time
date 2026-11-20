@@ -8,15 +8,17 @@ services:
   # ── Reverse proxy & static frontend ───────────────────
   web:
     image: lunch-on-time/web:1.0
+    command: ["nginx", "-g", "daemon off;"]
     ports:
       - "8080:80"
     environment:
       TZ: America/Bogota
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:80/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 5s
     deploy:
       replicas: 2
       update_config:
