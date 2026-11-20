@@ -54,13 +54,14 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Return 400 with the Spanish validation message instead of 422."""
     for error in exc.errors():
         msg = error.get("msg", "")
+        loc = error.get("loc", ())
         # Surface our custom validator messages
         if "El precio debe ser un número mayor a 0" in msg:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "El precio debe ser un número mayor a 0"},
             )
-        if "Las unidades deben ser un número mayor o igual a 0" in msg:
+        if "Las unidades deben ser un número mayor o igual a 0" in msg or "stock" in loc:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Las unidades deben ser un número mayor o igual a 0"},

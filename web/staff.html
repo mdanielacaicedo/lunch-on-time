@@ -599,7 +599,46 @@
       min-width: 155px;
     }
 
-    /* Tab Settings (Sprint 5 Placeholder) */
+    /* Stock Management (CF-MENU-0005) */
+    .stock-cell-container {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .stock-badge {
+      display: inline-block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .stock-badge.sold-out {
+      color: var(--danger-color);
+      font-weight: 700;
+    }
+
+    .stock-badge.unmanaged {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .stock-edit-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .input-mini-stock {
+      width: 75px;
+      height: 32px;
+      padding: 4px 8px;
+      font-size: 0.88rem;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Tab Settings (CF-PEDI-0009) */
     .settings-card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -779,7 +818,7 @@
       </div>
     </section>
 
-    <!-- TAB 4: Ajustes (Sprint 5 Placeholder) -->
+    <!-- TAB 4: Ajustes (CF-PEDI-0009) -->
     <section id="tab-settings" class="tab-panel" aria-labelledby="heading-settings">
       <div class="panel-header">
         <h2 id="heading-settings">Configuración del servicio</h2>
@@ -788,26 +827,48 @@
 
       <div class="settings-card">
         <h3>Cupo y Horarios</h3>
-        <p>Los ajustes de cupo por franja y horario se configurarán en el Sprint 5 (CF-PEDI-0009).</p>
+        <p>Configura el cupo máximo por franja de 15 minutos y el rango de horario del servicio.</p>
 
-        <div class="form-group">
-          <label>Cupo máximo por franja</label>
-          <input type="number" class="form-control" value="10" disabled />
-        </div>
+        <form id="form-settings" novalidate>
+          <div class="form-group">
+            <label for="input-slot-capacity">Cupo máximo por franja</label>
+            <input
+              type="number"
+              id="input-slot-capacity"
+              class="form-control"
+              min="1"
+              step="1"
+              placeholder="Ej. 10"
+              required
+            />
+          </div>
 
-        <div class="form-group">
-          <label>Hora de inicio</label>
-          <input type="text" class="form-control" value="11:30" disabled />
-        </div>
+          <div class="form-group">
+            <label for="input-start-time">Hora de inicio</label>
+            <input
+              type="text"
+              id="input-start-time"
+              class="form-control"
+              placeholder="11:30"
+              required
+            />
+          </div>
 
-        <div class="form-group">
-          <label>Hora de fin</label>
-          <input type="text" class="form-control" value="14:00" disabled />
-        </div>
+          <div class="form-group">
+            <label for="input-end-time">Hora de fin</label>
+            <input
+              type="text"
+              id="input-end-time"
+              class="form-control"
+              placeholder="14:00"
+              required
+            />
+          </div>
 
-        <button type="button" class="btn-submit-form" disabled style="background-color: #9ca3af; cursor: not-allowed;">
-          Guardar ajustes (Sprint 5)
-        </button>
+          <button id="btn-save-settings" type="submit" class="btn-submit-form">
+            Guardar ajustes
+          </button>
+        </form>
       </div>
     </section>
 
@@ -896,6 +957,8 @@
         fetchReadyOrders();
       } else if (state.currentTab === 'tab-products') {
         fetchProducts();
+      } else if (state.currentTab === 'tab-settings') {
+        fetchConfig();
       }
     }
 
@@ -1166,7 +1229,7 @@
 
         deliverBtn.addEventListener('click', async () => {
           if (!selectedPayment) {
-            showAlert('Selecciona el medio de pago antes de marcar como entregado.', true);
+            showAlert('Selecciona el medio de pago', true);
             return;
           }
           deliverBtn.disabled = true;
@@ -1316,11 +1379,55 @@
         tdAction.appendChild(toggleBtn);
         tr.appendChild(tdAction);
 
-        // Stock (Sprint 5 space)
+        // Stock (CF-MENU-0005)
         const tdStock = document.createElement('td');
-        tdStock.style.color = 'var(--text-muted)';
-        tdStock.style.fontSize = '0.85rem';
-        tdStock.textContent = '(Sprint 5)';
+        const stockContainer = document.createElement('div');
+        stockContainer.className = 'stock-cell-container';
+
+        // 1. Mostrar unidades restantes
+        const stockInfo = document.createElement('div');
+        if (prod.stock !== null && prod.stock !== undefined) {
+          if (prod.stock === 0) {
+            stockInfo.className = 'stock-badge sold-out';
+            stockInfo.textContent = '0 restantes (Agotado)';
+          } else {
+            stockInfo.className = 'stock-badge';
+            stockInfo.textContent = `${prod.stock} restantes`;
+          }
+        } else {
+          stockInfo.className = 'stock-badge unmanaged';
+          stockInfo.textContent = 'Sin control';
+        }
+        stockContainer.appendChild(stockInfo);
+
+        // 2. Control para registrar unidades
+        const stockEditBox = document.createElement('div');
+        stockEditBox.className = 'stock-edit-box';
+
+        const stockInput = document.createElement('input');
+        stockInput.type = 'number';
+        stockInput.className = 'input-mini-stock';
+        stockInput.min = '0';
+        stockInput.step = '1';
+        stockInput.placeholder = 'Sin límite';
+        if (prod.stock !== null && prod.stock !== undefined) {
+          stockInput.value = prod.stock;
+        }
+
+        const stockBtn = document.createElement('button');
+        stockBtn.type = 'button';
+        stockBtn.className = 'btn-mini';
+        stockBtn.textContent = 'Guardar';
+
+        stockBtn.addEventListener('click', async () => {
+          await handleUpdateStock(prod.id, stockInput.value, stockBtn);
+        });
+
+        stockEditBox.appendChild(stockInput);
+        stockEditBox.appendChild(stockBtn);
+        stockContainer.appendChild(stockEditBox);
+
+        tdStock.appendChild(stockContainer);
         tr.appendChild(tdStock);
 
         tbody.appendChild(tr);
@@ -1463,6 +1570,50 @@
       }
     }
 
+    // Update Stock (CF-MENU-0005)
+    async function handleUpdateStock(productId, stockValStr, buttonElement) {
+      clearAlert();
+
+      let stockValue = null;
+      if (stockValStr !== null && stockValStr !== undefined && stockValStr.trim() !== '') {
+        const parsed = Number(stockValStr.trim());
+        if (isNaN(parsed) || !Number.isInteger(parsed) || parsed < 0) {
+          showAlert('Las unidades deben ser un número mayor o igual a 0', true);
+          return;
+        }
+        stockValue = parsed;
+      }
+
+      buttonElement.disabled = true;
+      buttonElement.textContent = 'Guardando...';
+
+      try {
+        const response = await fetch('/api/menu/products/' + encodeURIComponent(productId) + '/stock', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            stock: stockValue
+          })
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          showAlert(errData.detail || 'Error al actualizar las unidades', true);
+          return;
+        }
+
+        showAlert('Unidades actualizadas con éxito.', false);
+        await fetchProducts();
+      } catch (err) {
+        showAlert('Error de conexión al actualizar las unidades', true);
+      } finally {
+        buttonElement.disabled = false;
+        buttonElement.textContent = 'Guardar';
+      }
+    }
+
     // -------------------------------------------------------------
     // Sales Today (CF-PEDI-0007)
     // -------------------------------------------------------------
@@ -1481,6 +1632,82 @@
     }
 
     // -------------------------------------------------------------
+    // TAB 4: Ajustes (CF-PEDI-0009)
+    // -------------------------------------------------------------
+    async function fetchConfig() {
+      try {
+        const response = await fetch('/api/orders/config');
+        if (!response.ok) return;
+        const data = await response.json();
+        const capInput = document.getElementById('input-slot-capacity');
+        const startInput = document.getElementById('input-start-time');
+        const endInput = document.getElementById('input-end-time');
+        if (capInput) capInput.value = data.slot_capacity;
+        if (startInput) startInput.value = data.start_time;
+        if (endInput) endInput.value = data.end_time;
+      } catch (err) {
+        // silent fetch
+      }
+    }
+
+    async function handleUpdateConfig(e) {
+      e.preventDefault();
+      clearAlert();
+
+      const capInput = document.getElementById('input-slot-capacity');
+      const startInput = document.getElementById('input-start-time');
+      const endInput = document.getElementById('input-end-time');
+      const submitBtn = document.getElementById('btn-save-settings');
+
+      const slotCapacityVal = capInput.value.trim();
+      const startTimeVal = startInput.value.trim();
+      const endTimeVal = endInput.value.trim();
+
+      const payload = {};
+      if (slotCapacityVal !== '') {
+        const parsed = Number(slotCapacityVal);
+        payload.slot_capacity = isNaN(parsed) ? slotCapacityVal : parsed;
+      }
+      if (startTimeVal !== '') {
+        payload.start_time = startTimeVal;
+      }
+      if (endTimeVal !== '') {
+        payload.end_time = endTimeVal;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Guardando...';
+
+      try {
+        const response = await fetch('/api/orders/config', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          showAlert(errData.detail || 'Error al actualizar los ajustes', true);
+          return;
+        }
+
+        const updated = await response.json();
+        if (capInput) capInput.value = updated.slot_capacity;
+        if (startInput) startInput.value = updated.start_time;
+        if (endInput) endInput.value = updated.end_time;
+
+        showAlert('Ajustes guardados con éxito.', false);
+      } catch (err) {
+        showAlert('Error de conexión al actualizar los ajustes', true);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Guardar ajustes';
+      }
+    }
+
+    // -------------------------------------------------------------
     // Initialization & Auto-refresh Polling
     // -------------------------------------------------------------
     document.addEventListener('DOMContentLoaded', () => {
@@ -1490,6 +1717,7 @@
       fetchPendingOrders();
       fetchReadyOrders();
       fetchSalesToday();
+      fetchConfig();
 
       // Auto-refresh pending and ready orders every 10 seconds
       state.autoRefreshIntervalId = setInterval(() => {
@@ -1510,6 +1738,12 @@
       // Register product form
       const productForm = document.getElementById('form-register-product');
       productForm.addEventListener('submit', handleRegisterProduct);
+
+      // Settings form (CF-PEDI-0009)
+      const settingsForm = document.getElementById('form-settings');
+      if (settingsForm) {
+        settingsForm.addEventListener('submit', handleUpdateConfig);
+      }
     });
   </script>
 </body>
