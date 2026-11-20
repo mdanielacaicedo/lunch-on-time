@@ -1009,40 +1009,45 @@ class TestConfigEndpoints:
 
     @pytest.mark.asyncio
     async def test_put_config_start_time_not_less_than_end_time_400(self, client: AsyncClient):
-        """PUT /config rejects start_time >= end_time with 400."""
+        """PUT /config rejects start_time >= end_time with 400 'La hora de inicio debe ser menor a la hora de fin'."""
         # start_time > end_time
         r1 = await client.put("/config", json={"start_time": "14:00", "end_time": "12:00"})
         assert r1.status_code == 400
-        assert "menor" in r1.json()["detail"]
+        assert r1.json()["detail"] == "La hora de inicio debe ser menor a la hora de fin"
 
         # start_time == end_time
         r2 = await client.put("/config", json={"start_time": "12:00", "end_time": "12:00"})
         assert r2.status_code == 400
-        assert "menor" in r2.json()["detail"]
+        assert r2.json()["detail"] == "La hora de inicio debe ser menor a la hora de fin"
 
     @pytest.mark.asyncio
     async def test_put_config_invalid_time_format_400(self, client: AsyncClient):
         """PUT /config rejects invalid time formats with 400."""
         r1 = await client.put("/config", json={"start_time": "12:99"})
         assert r1.status_code == 400
+        assert r1.json()["detail"] == "La hora de inicio debe tener formato HH:MM"
 
         r2 = await client.put("/config", json={"end_time": "invalid"})
         assert r2.status_code == 400
+        assert r2.json()["detail"] == "La hora de fin debe tener formato HH:MM"
 
     @pytest.mark.asyncio
     async def test_put_config_invalid_slot_capacity_400(self, client: AsyncClient):
-        """PUT /config rejects slot_capacity <= 0 or non-integer with 400."""
+        """PUT /config rejects slot_capacity <= 0 or non-integer with 400 'El cupo debe ser un número entero mayor a 0'."""
         # 0
         r1 = await client.put("/config", json={"slot_capacity": 0})
         assert r1.status_code == 400
+        assert r1.json()["detail"] == "El cupo debe ser un número entero mayor a 0"
 
         # negative
         r2 = await client.put("/config", json={"slot_capacity": -5})
         assert r2.status_code == 400
+        assert r2.json()["detail"] == "El cupo debe ser un número entero mayor a 0"
 
         # non-integer string
         r3 = await client.put("/config", json={"slot_capacity": "abc"})
         assert r3.status_code == 400
+        assert r3.json()["detail"] == "El cupo debe ser un número entero mayor a 0"
 
     @pytest.mark.asyncio
     @patch("app.main.reserve_products")

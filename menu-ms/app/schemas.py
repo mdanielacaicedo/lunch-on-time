@@ -71,14 +71,24 @@ class PriceUpdate(BaseModel):
 class StockUpdate(BaseModel):
     """Body for PUT /products/{id}/stock (Sprint 5)."""
 
-    stock: int
+    stock: Optional[int] = None
 
-    @field_validator("stock")
+    @field_validator("stock", mode="before")
     @classmethod
-    def stock_non_negative(cls, v):
-        if v < 0:
+    def validate_stock(cls, v):
+        if v is None or v == "":
+            return None
+        if isinstance(v, bool):
             raise ValueError("Las unidades deben ser un número mayor o igual a 0")
-        return v
+        try:
+            if isinstance(v, float) and not v.is_integer():
+                raise ValueError("Las unidades deben ser un número mayor o igual a 0")
+            v_int = int(v)
+        except (ValueError, TypeError):
+            raise ValueError("Las unidades deben ser un número mayor o igual a 0")
+        if v_int < 0:
+            raise ValueError("Las unidades deben ser un número mayor o igual a 0")
+        return v_int
 
 
 # ---------- response bodies ----------

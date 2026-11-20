@@ -80,11 +80,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Return 400 with acceptance-criteria messages instead of 422."""
     for error in exc.errors():
         msg = error.get("msg", "")
-        if "La cantidad debe ser mayor a 0" in msg:
-            return JSONResponse(status_code=400, content={"detail": msg})
-        if "El cupo debe ser un número entero mayor a 0" in msg:
-            return JSONResponse(status_code=400, content={"detail": msg})
-        if "Selecciona el medio de pago" in msg:
+        loc = error.get("loc", ())
+        if "La cantidad debe ser mayor a 0" in msg or "quantity" in loc:
+            return JSONResponse(status_code=400, content={"detail": "La cantidad debe ser mayor a 0"})
+        if "El cupo debe ser un número entero mayor a 0" in msg or "slot_capacity" in loc:
+            return JSONResponse(status_code=400, content={"detail": "El cupo debe ser un número entero mayor a 0"})
+        if "Selecciona el medio de pago" in msg or "payment_method" in loc:
             return JSONResponse(status_code=400, content={"detail": "Selecciona el medio de pago"})
     return JSONResponse(
         status_code=400,

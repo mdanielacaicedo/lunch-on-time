@@ -1,12 +1,14 @@
 """Pytest fixtures for orders-ms.
 
-Runs tests against real PostgreSQL (orders-db at localhost:5433).
+Runs tests against real PostgreSQL in a dedicated orders_test database (orders-db at localhost:5433).
+Never touches the development 'orders' database to prevent data deletion.
 Uses NullPool to avoid asyncpg connection leaking across event loops.
 """
 
 from __future__ import annotations
 
 import os
+import re
 from datetime import date, datetime, time
 from typing import AsyncGenerator
 from unittest.mock import patch
@@ -26,10 +28,47 @@ from app.db import get_db
 from app.main import BOGOTA_TZ, app
 from app.models import Base, Config, Order, OrderItem
 
-TEST_DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres@localhost:5433/orders",
-)
+
+def get_test_database_url() -> str:
+    url = os.getenv("TEST_DATABASE_URL")
+    if not url:
+        base = os.getenv(
+            "DATABASE_URL",
+            "postgresql+asyncpg://postgres:postgres@localhost:5433/orders_test",
+        )
+        if base.endswith("/orders"):
+            url = base[:-7] + "/orders_test"
+        elif "/orders?" in base:
+            url = base.replace("/orders?", "/orders_test?")
+        else:
+            url = base
+    if url.endswith("/orders") or "/orders?" in url:
+        url = url.replace("/orders", "/orders_test")
+    return url
+
+
+TEST_DATABASE_URL = get_test_database_url()
+
+
+async def ensure_test_database_exists(target_url: str) -> None:
+    """Ensure orders_test database exists, creating it if needed."""
+    admin_url = re.sub(r"/([^/?]+)(\?.*)?$", r"/postgres\2", target_url)
+    db_name_match = re.search(r"/([^/?]+)(\?.*)?$", target_url)
+    if not db_name_match:
+        return
+    db_name = db_name_match.group(1)
+
+    admin_engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT", poolclass=NullPool)
+    try:
+        async with admin_engine.connect() as conn:
+            res = await conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
+            if not res.scalar():
+                await conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+    finally:
+        await admin_engine.dispose()
+
+
+_test_db_ensured = False
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +83,12 @@ def default_bogota_time():
 @pytest_asyncio.fixture()
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Provide a fresh DB session for tests and clean up tables."""
+    global _test_db_ensured
+    if not _test_db_ensured:
+        await ensure_test_database_exists(TEST_DATABASE_URL)
+        _test_db_ensured = True
+
+    assert "orders_test" in TEST_DATABASE_URL, f"Tests must only run against orders_test, got: {TEST_DATABASE_URL}"
     engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

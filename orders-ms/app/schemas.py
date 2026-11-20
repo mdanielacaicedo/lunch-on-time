@@ -100,12 +100,22 @@ class ConfigUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
 
-    @field_validator("slot_capacity")
+    @field_validator("slot_capacity", mode="before")
     @classmethod
-    def capacity_must_be_positive(cls, v: Optional[int]) -> Optional[int]:
-        if v is not None and v <= 0:
+    def capacity_must_be_positive(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, bool):
             raise ValueError("El cupo debe ser un número entero mayor a 0")
-        return v
+        try:
+            if isinstance(v, float) and not v.is_integer():
+                raise ValueError("El cupo debe ser un número entero mayor a 0")
+            v_int = int(v)
+        except (ValueError, TypeError):
+            raise ValueError("El cupo debe ser un número entero mayor a 0")
+        if v_int <= 0:
+            raise ValueError("El cupo debe ser un número entero mayor a 0")
+        return v_int
 
 
 class OrderStatusOut(BaseModel):
