@@ -1,0 +1,155 @@
+# ─────────────────────────────────────────────────────────
+# Lunch on Time – Docker Swarm Stack Definition (Production)
+# ─────────────────────────────────────────────────────────
+
+version: "3.8"
+
+services:
+  # ── Reverse proxy & static frontend ───────────────────
+  web:
+    image: lunch-on-time/web:1.0
+    command: ["nginx", "-g", "daemon off;"]
+    ports:
+      - "8080:80"
+    environment:
+      TZ: America/Bogota
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        order: start-first
+      restart_policy:
+        condition: on-failure
+    networks:
+      - lunch-net
+
+  # ── Menu Microservice ──────────────────────────────────
+  menu-ms:
+    image: lunch-on-time/menu-ms:1.0
+    environment:
+      DB_HOST: menu-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_NAME: menu
+      DB_PASSWORD_FILE: /run/secrets/menu_db_pass
+      TZ: America/Bogota
+    secrets:
+      - menu_db_pass
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 2
+      update_config:
+        parallelism: 1
+        order: start-first
+      restart_policy:
+        condition: on-failure
+    networks:
+      - lunch-net
+
+  # ── Orders Microservice ────────────────────────────────
+  orders-ms:
+    image: lunch-on-time/orders-ms:1.0
+    environment:
+      DB_HOST: orders-db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_NAME: orders
+      DB_PASSWORD_FILE: /run/secrets/orders_db_pass
+      MENU_URL: "http://menu-ms:8000"
+      TZ: America/Bogota
+    secrets:
+      - orders_db_pass
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 3
+      update_config:
+        parallelism: 1
+        order: start-first
+      restart_policy:
+        condition: on-failure
+    networks:
+      - lunch-net
+
+  # ── Menu Database (PostgreSQL 16) ──────────────────────
+  menu-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: menu
+      POSTGRES_PASSWORD_FILE: /run/secrets/menu_db_pass
+      TZ: America/Bogota
+    secrets:
+      - menu_db_pass
+    volumes:
+      - menu-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    networks:
+      - lunch-net
+
+  # ── Orders Database (PostgreSQL 16) ─────────────────────
+  orders-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: orders
+      POSTGRES_PASSWORD_FILE: /run/secrets/orders_db_pass
+      TZ: America/Bogota
+    secrets:
+      - orders_db_pass
+    volumes:
+      - orders-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+    networks:
+      - lunch-net
+
+volumes:
+  menu-data:
+  orders-data:
+
+secrets:
+  menu_db_pass:
+    external: true
+  orders_db_pass:
+    external: true
+
+networks:
+  lunch-net:
+    driver: overlay
